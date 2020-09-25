@@ -23,13 +23,16 @@
 #include <voxblox_ros/ros_params.h>
 #include <voxblox_ros/esdf_server.h>
 
+#include <gpu_voxels_tester/gpu_voxels_server.h>
+
 #pragma once
 
 typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::TransformStamped::ConstPtr>* FiestaPtr;
 typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::TransformStamped::ConstPtr> FiestaClass;
 typedef std::shared_ptr<voxblox::EsdfMap> VoxbloxPtr;
 typedef voxblox::EsdfServer VoxbloxClass;
-
+typedef std::shared_ptr<gpu_voxels_tester::GPUVoxelsServer> GPUVoxelsPtr;
+typedef gpu_voxels_tester::GPUVoxelsServer GPUVoxelsClass;
 
 namespace sample_nodelet {
 

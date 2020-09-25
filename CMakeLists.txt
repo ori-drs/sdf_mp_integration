@@ -2,14 +2,21 @@ cmake_minimum_required(VERSION 3.0.2)
 project(sample_nodelet)
 
 set(CMAKE_CXX_FLAGS "-std=c++17 ${CMAKE_CXX_FLAGS} -O3 -Wall ") # -Wextra -Werror
-set(CMAKE_BUILD_TYPE "DEBUG")
+set(CMAKE_BUILD_TYPE "RELEASE")
 
 find_package(catkin COMPONENTS voxblox voxblox_ros voxblox_msgs voxblox_rviz_plugin REQUIRED)
 find_package(roscpp REQUIRED)
 find_package(nodelet REQUIRED)
 find_package(fiesta REQUIRED)
+find_package(gpu_voxels_tester REQUIRED)
 find_package(gpmp2 REQUIRED)
 find_package(Boost COMPONENTS timer REQUIRED) # Why this is needed, i have no idea
+find_package(gpu_voxels PATHS /home/mark/installs/gpu-voxels/export REQUIRED)
+FIND_PACKAGE(CUDA REQUIRED)
+FIND_PACKAGE(icl_core PATHS /home/mark/installs/gpu-voxels/export REQUIRED )
+FIND_PACKAGE(Boost COMPONENTS system REQUIRED)
+FIND_PACKAGE(orocos_kdl REQUIRED)
+FIND_PACKAGE(rospy REQUIRED)
 
 ###### GTSAM STUFF STARTS HERE
 
@@ -26,16 +33,26 @@ find_package(PCL 1.7 REQUIRED)
 find_package(OpenCV REQUIRED)
 
 
+add_definitions(
+  ${gpu_voxels_DEFINITIONS}
+  ${icl_core_DEFINITIONS}
+)
+
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${nodelet_INCLUDE_DIRS}
   ${roscpp_INCLUDE_DIRS}
   ${fiesta_INCLUDE_DIRS}
+  ${gpu_voxels_tester_INCLUDE_DIRS}
+  ${gpu_voxels_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${gpmp2_INCLUDE_DIR}
-  # ${voxblox_ros_INCLUDE_DIRs}
+  ${CUDA_INCLUDE_DIRS}
+  ${icl_core_INCLUDE_DIRS}
+  ${orocos_kdl_INCLUDE_DIRS}
+  ${rospy_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME}_lib
@@ -44,7 +61,8 @@ add_library(${PROJECT_NAME}_lib
 
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp nodelet fiesta voxblox_ros voxblox voxblox_msgs voxblox_rviz_plugin 
+  CATKIN_DEPENDS roscpp nodelet fiesta  voxblox_ros voxblox voxblox_msgs voxblox_rviz_plugin 
+  # gpu_voxels_tester
 )
 
 
@@ -98,6 +116,14 @@ ${OpenCV_LIBS}
 gpmp2
 gtsam
 ${voxblox_ros_LIBRARIES}
+
+${Boost_SYSTEM_LIBRARY}
+${icl_core_LIBRARIES}
+${gpu_voxels_LIBRARIES}
+${CUDA_LIBRARIES}
+${orocos_kdl_LIBRARIES}
+${rospy_LIBRARIES}
+# ${gpu_voxels_tester_LIBRARIES}
 )
 
 
