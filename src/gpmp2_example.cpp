@@ -116,7 +116,6 @@ int main(int argc, char **argv) {
   ros::init(argc, argv, "gpmp2_example");
   ros::NodeHandle node("~");
   ros::NodeHandle nh_private;
-  // std::string point_cloud_topic = "/hsrb/head_rgbd_sensor/depth_registered/points";
 
   // Set up FIESTA  
   // FiestaPtr esdf_ptr; 
@@ -135,6 +134,7 @@ int main(int argc, char **argv) {
   gpu_voxels_ptr = new gpu_voxels_tester::GPUVoxelsServer(node);
   sample_nodelet::SDFHandler<GPUVoxelsPtr> sdf_handler(gpu_voxels_ptr);
   ros::spinOnce();
+  ros::Rate r(30);
 
   std::cout << "Successfully set up the mapping server." << std:: endl;
 
@@ -143,6 +143,7 @@ int main(int argc, char **argv) {
   // gtsam::Pose3 base_pose(Rot3(), Point3(2.0, 1.0, -1.0));
   gtsam::Pose3 base_pose(Rot3(), Point3(2.0, 1.0, 1.0));
   gpmp2::Arm abs_arm(2, a, alpha, d, base_pose);
+  
   // body spheres
   gpmp2::BodySphereVector body_spheres;
   body_spheres.push_back(gpmp2::BodySphere(0, 0.5, gtsam::Point3(-1.0, 0, 0)));
@@ -155,7 +156,6 @@ int main(int argc, char **argv) {
   std::cout << "Created arm model." << std:: endl;
 
   // settings
-
   double pose_fix_sigma = 0.0001;
   double vel_fix_sigma = 0.0001; 
   size_t total_step = 10;
@@ -171,10 +171,6 @@ int main(int argc, char **argv) {
   setting.set_conf_prior_model(pose_fix_sigma);
   setting.set_vel_prior_model(vel_fix_sigma);
   setting.set_Qc_model(Qc);
-
-  // parameters = GaussNewtonParams;
-  // parameters.setVerbosity('ERROR');
-  // optimizer = GaussNewtonOptimizer(graph, init_values, parameters);
 
 
   gtsam::Vector2 start_conf(0.0, 0.0);
@@ -205,7 +201,12 @@ int main(int argc, char **argv) {
   // res.print();
 
   std::cout << "Finished!" << std::endl;
-  ros::spin();
+  
+  while (ros::ok())
+  {
+    ros::spinOnce();
+    r.sleep();
+  }
   return 0;
 }
 
