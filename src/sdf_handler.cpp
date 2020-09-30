@@ -29,3 +29,15 @@ double sample_nodelet::SDFHandler<VoxbloxPtr>::getSignedDistance(const gtsam::Po
   sdf_package_ptr_->getDistanceAndGradientAtPosition(point, &distance, &g);
   return distance;
 };
+
+template <>
+double sample_nodelet::SDFHandler<GPUVoxelsPtr>::getSignedDistance(const gtsam::Point3& point) const {
+  double distance = 0.0;
+  return sdf_package_ptr_->GetDistance(point);
+};
+
+template <>
+double sample_nodelet::SDFHandler<GPUVoxelsPtr>::getSignedDistance(const gtsam::Point3& point, gtsam::Vector3& g) const {
+  double distance = 0.0;
+  return sdf_package_ptr_->GetDistanceAndGradient(point, g);
+};

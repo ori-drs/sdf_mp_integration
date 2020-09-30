@@ -123,7 +123,7 @@ ${gpu_voxels_LIBRARIES}
 ${CUDA_LIBRARIES}
 ${orocos_kdl_LIBRARIES}
 ${rospy_LIBRARIES}
-# ${gpu_voxels_tester_LIBRARIES}
+${gpu_voxels_tester_LIBRARIES}
 )
 
 

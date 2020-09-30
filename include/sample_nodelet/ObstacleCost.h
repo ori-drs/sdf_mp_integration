@@ -73,5 +73,31 @@ namespace gpmp2 {
     }
   }
 
+
+  inline double hingeLossObstacleCost(const gtsam::Point3& point, const sample_nodelet::SDFHandler<GPUVoxelsPtr> sdf_handler,
+      double eps, gtsam::OptionalJacobian<1, 3> H_point = boost::none) {
+
+    gtsam::Vector3 field_gradient;
+    double dist_signed;
+    try {
+      dist_signed = sdf_handler.getSignedDistance(point, field_gradient);
+    } catch (SDFQueryOutOfRange&) {
+      //std::cout << "[hingeLossObstacleCost] WARNING: querying signed distance out of range, "
+      //    "assume zero obstacle cost." << std::endl;
+      if (H_point) *H_point = gtsam::Matrix13::Zero();
+      return 0.0;
+    }
+
+    if (dist_signed > eps) {
+      // faraway no error
+      if (H_point) *H_point = gtsam::Matrix13::Zero();
+      return 0.0;
+
+    } else {
+      // outside but < eps or inside object
+      if (H_point) *H_point = -field_gradient.transpose();
+      return eps - dist_signed;
+    }
+  }
 }
 

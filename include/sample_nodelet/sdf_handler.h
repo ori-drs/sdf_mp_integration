@@ -31,7 +31,7 @@ typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::Transf
 typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::TransformStamped::ConstPtr> FiestaClass;
 typedef std::shared_ptr<voxblox::EsdfMap> VoxbloxPtr;
 typedef voxblox::EsdfServer VoxbloxClass;
-typedef std::shared_ptr<gpu_voxels_tester::GPUVoxelsServer> GPUVoxelsPtr;
+typedef gpu_voxels_tester::GPUVoxelsServer* GPUVoxelsPtr;
 typedef gpu_voxels_tester::GPUVoxelsServer GPUVoxelsClass;
 
 namespace sample_nodelet {
@@ -57,24 +57,11 @@ namespace sample_nodelet {
       /// @param point query position
       /// @return signed distance
       inline double getSignedDistance(const gtsam::Point3& point) const ;
-      // {
-      //   // double dist = sdf_package_ptr_->GetDistance(point);
-      //   // std::cout << "Distance query: " << dist << std::endl;
-      //   // return dist;
-      //   return sdf_package_ptr_->GetDistance(point);
-      // };
+
       /// give a point, search for signed distance field and (optional) gradient
       /// @param point query position
       /// @param g returned gradient reference
       /// @return signed distance
       inline double getSignedDistance(const gtsam::Point3& point, gtsam::Vector3& g) const ;
-      // {
-      //   // double dist = sdf_package_ptr_->GetDistanceAndGradient(point, g);
-      //   // std::cout << "Dist&Grad query: " << dist << std::endl;
-      //   // std::cout << "Dist&Grad query: " << g[0] << g[1] << g[2] << std::endl;
-      //   // return dist;        
-
-      //   return sdf_package_ptr_->GetDistanceAndGradient(point, g);
-      // };
   };
 } // sample_nodelet namespace

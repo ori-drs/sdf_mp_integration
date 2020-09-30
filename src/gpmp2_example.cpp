@@ -37,8 +37,6 @@
 #include <sample_nodelet/ObstacleFactor.h>
 #include <sample_nodelet/ObstacleFactorGP.h>
 
-// typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::TransformStamped::ConstPtr>* FiestaPtr;
-// typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::TransformStamped::ConstPtr> FiestaClass;
 
 template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
     class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
@@ -115,34 +113,35 @@ gtsam::Values MarkTrajOptimize(
 int main(int argc, char **argv) {
 
   std::cout << "Entered main" << std:: endl;
-  ros::init(argc, argv, "FIESTA");
+  ros::init(argc, argv, "gpmp2_example");
   ros::NodeHandle node("~");
   ros::NodeHandle nh_private;
+  // std::string point_cloud_topic = "/hsrb/head_rgbd_sensor/depth_registered/points";
 
   // Set up FIESTA  
   // FiestaPtr esdf_ptr; 
   // esdf_ptr = new FiestaClass(node);
-  // sample_nodelet::SDFHandler<FiestaClass> sdf_handler(esdf_ptr);
+  // sample_nodelet::SDFHandler<FiestaPtr> sdf_handler(esdf_ptr);
   // ros::spinOnce();
 
   // Set up Voxblox
-  // voxblox::EsdfServer voxblox_node(node, nh_private);
-  // std::shared_ptr<voxblox::EsdfMap> voxblox_esdf_ptr = voxblox_node.getEsdfMapPtr();  
-  VoxbloxClass voxblox_node(node, nh_private);
-  VoxbloxPtr voxblox_esdf_ptr = voxblox_node.getEsdfMapPtr();
-  sample_nodelet::SDFHandler<VoxbloxPtr> sdf_handler(voxblox_esdf_ptr);
-  ros::spinOnce();
+  // VoxbloxClass voxblox_node(node, nh_private);
+  // VoxbloxPtr voxblox_esdf_ptr = voxblox_node.getEsdfMapPtr();
+  // sample_nodelet::SDFHandler<VoxbloxPtr> sdf_handler(voxblox_esdf_ptr);
+  // ros::spinOnce();
  
   // Set up GPU-Voxels
-  // GPUVoxelsPtr gpu_voxels_ptr; 
-  // gpu_voxels_ptr = new GPUVoxels(node);
-  // sample_nodelet::SDFHandler<GPUVoxelsClass> sdf_handler(gpu_voxels_ptr);
-  // ros::spinOnce();
+  GPUVoxelsPtr gpu_voxels_ptr; 
+  gpu_voxels_ptr = new gpu_voxels_tester::GPUVoxelsServer(node);
+  sample_nodelet::SDFHandler<GPUVoxelsPtr> sdf_handler(gpu_voxels_ptr);
+  ros::spinOnce();
 
+  std::cout << "Successfully set up the mapping server." << std:: endl;
 
   // 2 link simple example, with none zero base poses
   gtsam::Vector2 a(1, 1), alpha(0, 0), d(0, 0);
-  gtsam::Pose3 base_pose(Rot3(), Point3(2.0, 1.0, -1.0));
+  // gtsam::Pose3 base_pose(Rot3(), Point3(2.0, 1.0, -1.0));
+  gtsam::Pose3 base_pose(Rot3(), Point3(2.0, 1.0, 1.0));
   gpmp2::Arm abs_arm(2, a, alpha, d, base_pose);
   // body spheres
   gpmp2::BodySphereVector body_spheres;
@@ -152,6 +151,8 @@ int main(int argc, char **argv) {
   body_spheres.push_back(gpmp2::BodySphere(1, 0.1, gtsam::Point3(-0.5, 0, 0)));
   body_spheres.push_back(gpmp2::BodySphere(1, 0.1, gtsam::Point3(0, 0, 0)));
   gpmp2::ArmModel arm(abs_arm, body_spheres);
+  
+  std::cout << "Created arm model." << std:: endl;
 
   // settings
 
@@ -184,21 +185,27 @@ int main(int argc, char **argv) {
   gtsam::Values init_values = gpmp2::initArmTrajStraightLine(start_conf, end_conf, total_step);
 
 
+  std::cout << "Starting optimisation." << std:: endl;
 
   // gtsam::Values res = MarkTrajOptimize<gpmp2::ArmModel, gpmp2::GaussianProcessPriorLinear, sample_nodelet::SDFHandler<FiestaPtr>, 
   //                                     sample_nodelet::ObstacleFactor<FiestaPtr, gpmp2::ArmModel>, 
   //                                     sample_nodelet::ObstacleFactorGP<FiestaPtr, gpmp2::ArmModel, gpmp2::GaussianProcessInterpolatorLinear> , 
   //                                     gpmp2::JointLimitFactorVector, gpmp2::VelocityLimitFactorVector>(arm, sdf_handler, start_conf, start_vel, end_conf, end_vel, init_values, setting);
   
-  gtsam::Values res = MarkTrajOptimize<gpmp2::ArmModel, gpmp2::GaussianProcessPriorLinear, sample_nodelet::SDFHandler<VoxbloxPtr>, 
-                                      sample_nodelet::ObstacleFactor<VoxbloxPtr, gpmp2::ArmModel>, 
-                                      sample_nodelet::ObstacleFactorGP<VoxbloxPtr, gpmp2::ArmModel, gpmp2::GaussianProcessInterpolatorLinear> , 
+  // gtsam::Values res = MarkTrajOptimize<gpmp2::ArmModel, gpmp2::GaussianProcessPriorLinear, sample_nodelet::SDFHandler<VoxbloxPtr>, 
+  //                                     sample_nodelet::ObstacleFactor<VoxbloxPtr, gpmp2::ArmModel>, 
+  //                                     sample_nodelet::ObstacleFactorGP<VoxbloxPtr, gpmp2::ArmModel, gpmp2::GaussianProcessInterpolatorLinear> , 
+  //                                     gpmp2::JointLimitFactorVector, gpmp2::VelocityLimitFactorVector>(arm, sdf_handler, start_conf, start_vel, end_conf, end_vel, init_values, setting);
+
+  gtsam::Values res = MarkTrajOptimize<gpmp2::ArmModel, gpmp2::GaussianProcessPriorLinear, sample_nodelet::SDFHandler<GPUVoxelsPtr>, 
+                                      sample_nodelet::ObstacleFactor<GPUVoxelsPtr, gpmp2::ArmModel>, 
+                                      sample_nodelet::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::ArmModel, gpmp2::GaussianProcessInterpolatorLinear> , 
                                       gpmp2::JointLimitFactorVector, gpmp2::VelocityLimitFactorVector>(arm, sdf_handler, start_conf, start_vel, end_conf, end_vel, init_values, setting);
 
-
-  res.print();
+  // res.print();
 
   std::cout << "Finished!" << std::endl;
+  ros::spin();
   return 0;
 }
 
