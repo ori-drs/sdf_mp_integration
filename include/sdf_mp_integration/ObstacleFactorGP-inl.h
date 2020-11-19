@@ -6,13 +6,13 @@
  **/
 
 #include <gpmp2/obstacle/ObstacleCost.h>
-#include <sample_nodelet/ObstacleCost.h>
+#include <sdf_mp_integration/ObstacleCost.h>
 
 using namespace std;
 using namespace gtsam;
 
 
-namespace sample_nodelet {
+namespace sdf_mp_integration {
 
 /* ************************************************************************** */
 template <class SDFPACKAGEPTR, class ROBOT, class GPINTER>

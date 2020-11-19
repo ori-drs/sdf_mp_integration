@@ -16,9 +16,9 @@
 
 #include <vector>
 
-#include <sample_nodelet/sdf_handler.h>
+#include <sdf_mp_integration/sdf_handler.h>
 
-namespace sample_nodelet {
+namespace sdf_mp_integration {
 
 /**
  * binary factor for obstacle avoidance use GP interpolation, planar version
@@ -120,5 +120,5 @@ public:
 
 }
 
-#include <sample_nodelet/ObstacleFactorGP-inl.h>
+#include <sdf_mp_integration/ObstacleFactorGP-inl.h>
 

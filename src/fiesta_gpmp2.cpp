@@ -1,5 +1,5 @@
-#include <sample_nodelet/sdf_handler.h>
-#include <sample_nodelet/ObstacleFactor.h>
+#include <sdf_mp_integration/sdf_handler.h>
+#include <sdf_mp_integration/ObstacleFactor.h>
 
 #include <iostream>
 // #include <chrono>
@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
   esdf_ptr = new FiestaClass(node);
 
   // Pass FIESTA to a handle for GPMP2
-  sample_nodelet::SDFHandler<FiestaPtr> sdf_handler(esdf_ptr);
+  sdf_mp_integration::SDFHandler<FiestaPtr> sdf_handler(esdf_ptr);
   ros::spinOnce();
 
   double dist;
@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
   std::cout << "Finished" << std::endl;
   double obs_eps = 0.2;
 
-  sample_nodelet::ObstacleFactor<FiestaPtr, gpmp2::ArmModel> factor(0, arm, sdf_handler, 1.0, obs_eps);
+  sdf_mp_integration::ObstacleFactor<FiestaPtr, gpmp2::ArmModel> factor(0, arm, sdf_handler, 1.0, obs_eps);
   std::cout << "Finished" << std::endl;
 
   // ros::spin();

@@ -23,7 +23,7 @@
 #include <voxblox_ros/ros_params.h>
 #include <voxblox_ros/esdf_server.h>
 
-#include <gpu_voxels_tester/gpu_voxels_server.h>
+#include <gpu_voxels_ros/gpu_voxels_server.h>
 
 #pragma once
 
@@ -31,10 +31,10 @@ typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::Transf
 typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::TransformStamped::ConstPtr> FiestaClass;
 typedef std::shared_ptr<voxblox::EsdfMap> VoxbloxPtr;
 typedef voxblox::EsdfServer VoxbloxClass;
-typedef gpu_voxels_tester::GPUVoxelsServer* GPUVoxelsPtr;
-typedef gpu_voxels_tester::GPUVoxelsServer GPUVoxelsClass;
+typedef gpu_voxels_ros::GPUVoxelsServer* GPUVoxelsPtr;
+typedef gpu_voxels_ros::GPUVoxelsServer GPUVoxelsClass;
 
-namespace sample_nodelet {
+namespace sdf_mp_integration {
 
   template <typename SDFPACKAGEPTR>
   class SDFHandler {
@@ -64,4 +64,4 @@ namespace sample_nodelet {
       /// @return signed distance
       inline double getSignedDistance(const gtsam::Point3& point, gtsam::Vector3& g) const ;
   };
-} // sample_nodelet namespace
+} // sdf_mp_integration namespace

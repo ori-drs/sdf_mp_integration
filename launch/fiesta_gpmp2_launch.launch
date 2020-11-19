@@ -3,7 +3,7 @@
 	<!-- $ rosrun fiesta nodelet cam_pose_relay-->
 	<node pkg="fiesta" type="cam_pose_relay" name="cam_pose_relay" output="screen" />
 
-    <node pkg="sample_nodelet" type="fiesta_gpmp2_node" name="fiesta" output="screen"
+    <node pkg="sdf_mp_integration" type="fiesta_gpmp2_node" name="fiesta" output="screen"
           required="true">
 
         <param name="resolution" value="0.05"/>

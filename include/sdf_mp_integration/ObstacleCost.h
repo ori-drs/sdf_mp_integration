@@ -15,13 +15,13 @@
 #include <gtsam/geometry/Point3.h>
 
 #include <iostream>
-#include <sample_nodelet/sdf_handler.h>
+#include <sdf_mp_integration/sdf_handler.h>
 
 
 namespace gpmp2 {
 
   /// hinge loss obstacle cost function
-  inline double hingeLossObstacleCost(const gtsam::Point3& point, const sample_nodelet::SDFHandler<FiestaPtr> sdf_handler,
+  inline double hingeLossObstacleCost(const gtsam::Point3& point, const sdf_mp_integration::SDFHandler<FiestaPtr> sdf_handler,
       double eps, gtsam::OptionalJacobian<1, 3> H_point = boost::none) {
 
     gtsam::Vector3 field_gradient;
@@ -47,7 +47,7 @@ namespace gpmp2 {
     }
   }
 
-  inline double hingeLossObstacleCost(const gtsam::Point3& point, const sample_nodelet::SDFHandler<VoxbloxPtr> sdf_handler,
+  inline double hingeLossObstacleCost(const gtsam::Point3& point, const sdf_mp_integration::SDFHandler<VoxbloxPtr> sdf_handler,
       double eps, gtsam::OptionalJacobian<1, 3> H_point = boost::none) {
 
     gtsam::Vector3 field_gradient;
@@ -74,7 +74,7 @@ namespace gpmp2 {
   }
 
 
-  inline double hingeLossObstacleCost(const gtsam::Point3& point, const sample_nodelet::SDFHandler<GPUVoxelsPtr> sdf_handler,
+  inline double hingeLossObstacleCost(const gtsam::Point3& point, const sdf_mp_integration::SDFHandler<GPUVoxelsPtr> sdf_handler,
       double eps, gtsam::OptionalJacobian<1, 3> H_point = boost::none) {
 
     gtsam::Vector3 field_gradient;

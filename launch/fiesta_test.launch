@@ -1,6 +1,6 @@
 <launch>
 
-	<!-- $ rosrun nodelet nodelet manager __name:=sample_nodelet_manager -->
+	<!-- $ rosrun nodelet nodelet manager __name:=sdf_mp_integration_manager -->
 	<node pkg="nodelet" type="nodelet" args="manager"
     name="fiesta_nodelet_manager" output="screen" />
 
@@ -8,8 +8,8 @@
 	<node pkg="fiesta" type="cam_pose_relay" name="cam_pose_relay" output="screen" />
 
 
-	<!-- $ rosrun nodelet nodelet load sample_nodelet/SampleNodeletClass sample_nodelet_manager __name:=SampleNodeletClass_loader-->
-	<node pkg="nodelet" type="nodelet" args="load sample_nodelet/FiestaNodelet fiesta_nodelet_manager"
+	<!-- $ rosrun nodelet nodelet load sdf_mp_integration/SampleNodeletClass sdf_mp_integration_manager __name:=SampleNodeletClass_loader-->
+	<node pkg="nodelet" type="nodelet" args="load sdf_mp_integration/FiestaNodelet fiesta_nodelet_manager"
     name="fiesta" output="screen">
      <param name="resolution" value="0.05"/>
         <param name="update_esdf_every_n_sec" value="0.1"/>
@@ -72,7 +72,7 @@
     <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find fiesta)/demo.rviz" />
 </launch>
 
-     <!-- <node pkg="sample_nodelet" type="fiesta_tester" name="fiesta" output="screen"
+     <!-- <node pkg="sdf_mp_integration" type="fiesta_tester" name="fiesta" output="screen"
           required="true">
     </node> 
  -->

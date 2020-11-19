@@ -4,7 +4,7 @@
  *  Created on: 08/09/2020
  *  Author: Mark Finean
  */
-#include "sample_nodelet/dummy_motion_planner.h"
+#include "sdf_mp_integration/dummy_motion_planner.h"
 
 namespace dummy
 {

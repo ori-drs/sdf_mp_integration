@@ -1,5 +1,5 @@
 #include "Fiesta.h"
-#include <sample_nodelet/dummy_motion_planner.h>
+#include <sdf_mp_integration/dummy_motion_planner.h>
 
 int main(int argc, char **argv) {
   ros::init(argc, argv, "FIESTA");

@@ -1,39 +1,26 @@
-# sample_nodelet
+# sdf_mp_integration
 
-Simple example of ROS nodelet.
+## To do
 
-## Description
+- [ ] Create a test to ensure the sdf for each package is as expected
+    - [ ] GPU-Voxels
+    - [ ] FIESTA
+    - [ ] Voxblox
 
-* **sample_nodelet_class.launch** will run following nodes:
-  * **/sample_nodelet_manager** : nodelet manager
-  * **/sample_nodelet_loader** : loader of sample_nodelet_class
+Note that the test is already implemented in GPU-Voxels: a box from 0-10 in a 64x64x64 env. Results in txt file.
+
+- [ ] Look to parallelise GPU-Voxels inverse calculation
+- [ ] Record benchmarking results
+    - [ ] Calculation of the SDF
+    - [ ] Including the gradient calculation in GPU-Voxels 
 
 
-* **sample_nodelet_class2.launch** will run following nodes:
-  * **/sample_nodelet_manager** : nodelet manager
-  * **/sample_nodelet2_loader** : loader of sample_nodelet_class2
+## Benchmarking commands
+
+To play the cow and lady dataset:
+rosbag play /home/mark/code/sdf_package_testing/src/data.bag 
+
+Voxblox:
+roslaunch voxblox_ros cow_and_lady_dataset_esdf.launch 
 
 
-* **sample_nodelet_all.launch** will run following nodes:
-  * **/sample_nodelet_manager** : nodelet manager
-  * **/sample_nodelet_loader** : loader of sample_nodelet_class
-  * **/sample_nodelet2_loader** : loader of sample_nodelet_class2
-
-## Requirements
-
-* ROS Kinetic Kame / Jade Turtle / ROS Indigo Igloo
-
-## Usage without .launch files
-
-1. Run nodelet manager
-  * `rosrun nodelet nodelet manager __name:=<MANAGER_NAME>`
-  * ex.: `rosrun nodelet nodelet manager __name:=sample_nodelet_manager`
-2. Load nodelet class to nodelet manager
-  * `rosrun nodelet nodelet load <PKG_NAME>/<NODELETCLASS_NAME> <MANAGER_NAME>`
-  * ex.: `rosrun nodelet nodelet load sample_nodelet/SampleNodeletClass sample_nodelet_manager`
-
-## Author
-
-[@cryborg21](https://github.com/cryborg21)  
-Copyright (c) 2016 @cryborg21
-# sample_nodelet

@@ -15,11 +15,11 @@
 
 #include <iostream>
 #include <vector>
-#include <sample_nodelet/sdf_handler.h>
+#include <sdf_mp_integration/sdf_handler.h>
 
-using namespace sample_nodelet;
+using namespace sdf_mp_integration;
 
-namespace sample_nodelet {
+namespace sdf_mp_integration {
 
 /**
  * unary factor for obstacle avoidance
@@ -107,6 +107,6 @@ public:
 
 }
 
-#include <sample_nodelet/ObstacleFactor-inl.h>
+#include <sdf_mp_integration/ObstacleFactor-inl.h>
 
 
