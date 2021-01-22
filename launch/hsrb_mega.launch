@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="hsrb"/>
+  <arg name="personal_name" default="" />
+  <arg name="debug" default="false"/>
+  <arg name="gui" default="false" />
+  <arg name="rviz" default="false"/>
+  <arg name="gazebo_visualization" default="false" />
+  <arg name="use_manipulation" default="false" />
+  <arg name="use_navigation" default="true" />
+  <arg name="use_perception" default="true" />
+  <arg name="use_task" default="false" />
+  <arg name="use_teleop" default="false" />
+  <arg name="use_web" default="false" />
+  <arg name="use_laser_odom" default="true" />
+  <arg name="paused" default="false" />
+  <arg name="fast_physics" default="true" />
+  <arg name="robot_name" default="$(optenv ROBOT_NAME hsrb)" />
+
+  <arg unless="$(arg fast_physics)" name="world_suffix" value=""/>
+  <arg     if="$(arg fast_physics)" name="world_suffix" value="_fast"/>
+
+  <node name="transform_republish_node" pkg="sdf_mp_integration" type="transform_republish_node"/>
+
+  <param name="transform_topic" type="string" value="transform_topic" />
+  <param name="base_goal_sub_topic" type="string" value="/move_base_simple/goal" />
+  <param name="pcl_topic" type="string" value="/hsrb/head_rgbd_sensor/depth_registered/rectified_points" />
+
+    <!-- node_.param<std::string>("base_goal_sub_topic", base_goal_sub_topic_, "/camera/depth_registered/points"); -->
+
+
+  <include file="$(find hsrb_gazebo_launch)/launch/include/hsrb_gazebo_common.xml" pass_all_args="true" >
+    <arg name="map" default="$(find tmc_potential_maps)/maps/mega-web/map.yaml" />
+    <arg name="world_name" value="$(find tmc_gazebo_worlds)/worlds/megaweb2015$(arg world_suffix).world" />
+    <arg name="robot_pos" value="-x -1 -y -7.5 -z 0.32 -Y 1.57"/>
+    <arg name="ground_truth_xyz_offset" value="7.5\ -1.0\ -0.304866" />
+    <arg name="ground_truth_rpy_offset" value="0.0\ 0.0\ -1.57" />
+  </include>
+
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find sdf_mp_integration)/config/hsr_vis.rviz" />
+  <!-- <node name="planning_server" pkg="sdf_mp_integration" type="planning_server_node"/> -->
+
+</launch>
