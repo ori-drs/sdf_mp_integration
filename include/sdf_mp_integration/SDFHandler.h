@@ -1,9 +1,12 @@
 /**
- *  @file  sdf_handler.h
+ *  @file  SDFHandler.h
  *  @brief util functions for handling SDFs
  *  @author Mark Finean
  *  @date  09 September, 2020
  **/
+
+#ifndef SDF_MP_INTEGRATION_SDFHANDLER_H
+#define SDF_MP_INTEGRATION_SDFHANDLER_H
 
 #pragma once
 
@@ -18,21 +21,25 @@
 #include <fstream>
 #include <cstring>
 
-#include "Fiesta.h"
+// #include "Fiesta.h"
 
-#include <voxblox_ros/ros_params.h>
-#include <voxblox_ros/esdf_server.h>
+// #include <voxblox_ros/ros_params.h>
+// #include <voxblox_ros/esdf_server.h>
 
 #include <gpu_voxels_ros/gpu_voxels_server.h>
+#include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
 
 #pragma once
 
-typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::TransformStamped::ConstPtr>* FiestaPtr;
-typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::TransformStamped::ConstPtr> FiestaClass;
-typedef std::shared_ptr<voxblox::EsdfMap> VoxbloxPtr;
-typedef voxblox::EsdfServer VoxbloxClass;
-typedef gpu_voxels_ros::GPUVoxelsServer* GPUVoxelsPtr;
-typedef gpu_voxels_ros::GPUVoxelsServer GPUVoxelsClass;
+// typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::TransformStamped::ConstPtr>* FiestaPtr;
+// typedef fiesta::Fiesta<sensor_msgs::PointCloud2::ConstPtr, geometry_msgs::TransformStamped::ConstPtr> FiestaClass;
+// typedef std::shared_ptr<voxblox::EsdfMap> VoxbloxPtr;
+// typedef voxblox::EsdfServer VoxbloxClass;
+// typedef gpu_voxels_ros::GPUVoxelsServer* GPUVoxelsPtr;
+// typedef gpu_voxels_ros::GPUVoxelsServer GPUVoxelsClass;
+typedef gpu_voxels_ros::GPUVoxelsHSRServer* GPUVoxelsPtr;
+typedef gpu_voxels_ros::GPUVoxelsHSRServer GPUVoxelsClass;
+
 
 namespace sdf_mp_integration {
 
@@ -42,6 +49,7 @@ namespace sdf_mp_integration {
     private:
       SDFPACKAGEPTR sdf_package_ptr_;
     public:
+      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       //  constructor
       SDFHandler() {}      
       
@@ -56,12 +64,14 @@ namespace sdf_mp_integration {
       /// give a point, search for signed distance field and (optional) gradient
       /// @param point query position
       /// @return signed distance
-      inline double getSignedDistance(const gtsam::Point3& point) const ;
+      double getSignedDistance(const gtsam::Point3& point) const ;
 
       /// give a point, search for signed distance field and (optional) gradient
       /// @param point query position
       /// @param g returned gradient reference
       /// @return signed distance
-      inline double getSignedDistance(const gtsam::Point3& point, gtsam::Vector3& g) const ;
+      double getSignedDistance(const gtsam::Point3& point, gtsam::Vector3& g) const ;
   };
 } // sdf_mp_integration namespace
+
+#endif

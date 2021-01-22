@@ -10,21 +10,27 @@
 
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
-  <!-- <build_depend>nodelet</build_depend> -->
-  <build_depend>fiesta</build_depend>
+  <!-- <build_depend>fiesta</build_depend> -->
   <build_depend>gpu_voxels_ros</build_depend>
-  <build_depend>voxblox_ros</build_depend>
+  <!-- <build_depend>voxblox_ros</build_depend>
   <build_depend>voxblox</build_depend>
   <build_depend>voxblox_msgs</build_depend>
-  <build_depend>voxblox_rviz_plugin</build_depend>
+  <build_depend>voxblox_rviz_plugin</build_depend> -->
+  <build_depend>dgpmp2</build_depend>
+  <build_depend>tf</build_depend>
 
   <run_depend>roscpp</run_depend>
-  <!-- <run_depend>nodelet</run_depend> -->
-  <run_depend>fiesta</run_depend>
+  <!-- <run_depend>fiesta</run_depend> -->
   <run_depend>gpu_voxels_ros</run_depend>
-  <run_depend>voxblox_ros</run_depend>
+  <!-- <run_depend>voxblox_ros</run_depend>
   <run_depend>voxblox</run_depend>
   <run_depend>voxblox_msgs</run_depend>
-  <run_depend>voxblox_rviz_plugin</run_depend>
+  <run_depend>voxblox_rviz_plugin</run_depend> -->
+  <run_depend>dgpmp2</run_depend>
+  <run_depend>tf</run_depend>
+
+  <!-- To build msgs -->
+  <build_depend>message_generation</build_depend>
+  <run_depend>message_runtime</run_depend>
 
 </package>

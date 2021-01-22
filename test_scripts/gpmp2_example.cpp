@@ -33,7 +33,7 @@
 #include <gtsam/nonlinear/GaussNewtonOptimizer.h>
 #include <gtsam/inference/Symbol.h>
 
-#include <sdf_mp_integration/sdf_handler.h>
+#include <sdf_mp_integration/SDFHandler.h>
 #include <sdf_mp_integration/ObstacleFactor.h>
 #include <sdf_mp_integration/ObstacleFactorGP.h>
 

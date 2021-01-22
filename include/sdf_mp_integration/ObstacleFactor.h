@@ -15,7 +15,7 @@
 
 #include <iostream>
 #include <vector>
-#include <sdf_mp_integration/sdf_handler.h>
+#include <sdf_mp_integration/SDFHandler.h>
 
 using namespace sdf_mp_integration;
 
