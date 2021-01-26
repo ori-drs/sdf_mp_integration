@@ -164,6 +164,9 @@ ${catkin_LIBRARIES}
 ${roscpp_LIBRARIES} 
 )
 
+catkin_install_python(PROGRAMS scripts/plotting_node.py
+                      DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+
 # Install directory
 install(DIRECTORY include/${PROJECT_NAME}/
         DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
