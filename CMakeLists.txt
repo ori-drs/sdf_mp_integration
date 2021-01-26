@@ -9,6 +9,7 @@ roscpp
 rospy
 std_msgs
 geometry_msgs
+sensor_msgs
 nav_msgs
 tf
 tmc_omni_path_follower
@@ -77,16 +78,18 @@ add_message_files(
   FILES
   GtsamValue.msg
   GtsamValues.msg
+  WholeBodyPose.msg
 )
 
 generate_messages(
   DEPENDENCIES
   std_msgs
+  geometry_msgs
 )
 
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS roscpp 
+  CATKIN_DEPENDS roscpp   
   message_runtime # for message generation
   # fiesta 
   # voxblox_ros voxblox voxblox_msgs voxblox_rviz_plugin 

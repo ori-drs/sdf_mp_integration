@@ -4,7 +4,10 @@
 #include <string.h>
 
 #include <geometry_msgs/PoseStamped.h>
+#include <sensor_msgs/JointState.h>
 #include <nav_msgs/Path.h>
+#include <sdf_mp_integration/GtsamValues.h>
+#include <sdf_mp_integration/GtsamValue.h>
 
 #include "tf/transform_datatypes.h"
 #include <tf/tf.h>
@@ -48,6 +51,10 @@
 #include <sdf_mp_integration/ObstacleFactor.h>
 #include <sdf_mp_integration/ObstacleFactorGP.h>
 
+#include <sdf_mp_integration/WholeBodyPose.h>
+
+
+
 // To execute base commands on hsr
 #include <tmc_omni_path_follower/PathFollowerAction.h>
 #include <actionlib/client/simple_action_client.h>
@@ -58,7 +65,8 @@ class PlanningServer{
 
     private:
       ros::NodeHandle node_;
-      ros::Subscriber base_goal_sub_, arm_goal_sub_, full_goal_sub_;
+      ros::Subscriber base_goal_sub_, arm_goal_sub_, full_goal_sub_, joint_sub_;
+
       std::string base_goal_sub_topic_, arm_goal_sub_topic_, full_goal_sub_topic_;
       double resolution_;
       tf::TransformListener listener;
@@ -66,6 +74,14 @@ class PlanningServer{
       ros::Publisher path_pub_, init_path_pub_, plan_msg_pub;
       size_t total_time_step_;
       actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction> execute_ac_ ;
+      int arm_dof = 5;
+
+      int arm_lift_joint = 1;  
+      int arm_flex_joint_ind = 0;  
+      int arm_roll_joint_ind = 2;  
+      int wrist_flex_joint_ind = 11;  
+      int wrist_roll_joint_ind = 12;  
+      gtsam::Vector5 joint_state_;
 
     public:
       //  constructor
@@ -75,8 +91,11 @@ class PlanningServer{
 
       ~PlanningServer() {}
 
+      void jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg);
+
       //
       void baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
+      void fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg);
       void visualiseBasePlan(const gtsam::Values& plan);
       void visualiseInitialBasePlan(const gtsam::Values& plan);
       void executeBasePlan(const gtsam::Values& plan);
