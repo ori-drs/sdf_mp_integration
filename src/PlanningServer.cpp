@@ -7,7 +7,7 @@
 
 #include <sdf_mp_integration/PlanningServer.h>
 
-sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) : execute_ac_("r", true), execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true)   
+sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) : execute_ac_("path_follow_action", true), execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true)   
  {
     node_ = node;
     node_.param<std::string>("base_goal_sub_topic", base_goal_sub_topic_, "move_base_simple/goal");
