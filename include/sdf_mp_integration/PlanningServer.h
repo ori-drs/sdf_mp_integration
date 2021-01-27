@@ -76,7 +76,7 @@ class PlanningServer{
       actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction> execute_ac_ ;
       int arm_dof = 5;
 
-      int arm_lift_joint = 1;  
+      int arm_lift_joint_ind = 1;  
       int arm_flex_joint_ind = 0;  
       int arm_roll_joint_ind = 2;  
       int wrist_flex_joint_ind = 11;  

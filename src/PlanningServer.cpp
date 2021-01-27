@@ -41,7 +41,7 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) : execu
 
 void sdf_mp_integration::PlanningServer::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
 {
-    joint_state_[0] = msg->position[arm_lift_joint];
+    joint_state_[0] = msg->position[arm_lift_joint_ind];
     joint_state_[1] = msg->position[arm_flex_joint_ind];
     joint_state_[2] = msg->position[arm_roll_joint_ind];
     joint_state_[3] = msg->position[wrist_flex_joint_ind];
