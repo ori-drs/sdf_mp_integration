@@ -10,6 +10,7 @@ rospy
 std_msgs
 geometry_msgs
 sensor_msgs
+control_msgs
 nav_msgs
 tf
 tmc_omni_path_follower
@@ -79,6 +80,7 @@ add_message_files(
   GtsamValue.msg
   GtsamValues.msg
   WholeBodyPose.msg
+  ArmPose.msg
 )
 
 generate_messages(
@@ -160,6 +162,12 @@ gtsam
 
 add_executable(transform_republish_node src/transform_republish_node.cpp)
 target_link_libraries(transform_republish_node 
+${catkin_LIBRARIES} 
+${roscpp_LIBRARIES} 
+)
+
+add_executable(arm_goal_test_node scripts/arm_goal_test_node.cpp)
+target_link_libraries(arm_goal_test_node 
 ${catkin_LIBRARIES} 
 ${roscpp_LIBRARIES} 
 )

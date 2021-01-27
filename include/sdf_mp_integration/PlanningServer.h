@@ -51,6 +51,7 @@
 #include <sdf_mp_integration/ObstacleFactor.h>
 #include <sdf_mp_integration/ObstacleFactorGP.h>
 
+#include <sdf_mp_integration/ArmPose.h>
 #include <sdf_mp_integration/WholeBodyPose.h>
 
 
@@ -58,6 +59,7 @@
 // To execute base commands on hsr
 #include <tmc_omni_path_follower/PathFollowerAction.h>
 #include <actionlib/client/simple_action_client.h>
+#include <control_msgs/FollowJointTrajectoryAction.h>
 
 namespace sdf_mp_integration {
 
@@ -74,7 +76,8 @@ class PlanningServer{
       ros::Publisher path_pub_, init_path_pub_, plan_msg_pub;
       size_t total_time_step_;
       actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction> execute_ac_ ;
-      int arm_dof = 5;
+      actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> execute_arm_ac_ ;
+      int arm_dof_ = 5;
 
       int arm_lift_joint_ind = 1;  
       int arm_flex_joint_ind = 0;  
@@ -85,20 +88,28 @@ class PlanningServer{
 
     public:
       //  constructor
-      PlanningServer() : execute_ac_("path_follow_action", true) {}      
+      PlanningServer() : execute_ac_("path_follow_action", true), execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true) {}      
       
       PlanningServer(ros::NodeHandle node);
 
       ~PlanningServer() {}
 
+
+      gtsam::Values getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose, const float delta_t);
+
+      // void recordExecutedTrajectory();
+      // void recordActualBase(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg);
       void jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg);
 
       //
+      void armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg);
       void baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
       void fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg);
       void visualiseBasePlan(const gtsam::Values& plan);
       void visualiseInitialBasePlan(const gtsam::Values& plan);
       void executeBasePlan(const gtsam::Values& plan);
+      void executeArmPlan(const gtsam::Values& plan, const float delta_t);
+      void executeFullPlan(const gtsam::Values& plan, const float delta_t);
       void publishPlanMsg(const gtsam::Values& plan);
 
       void doneCb(const actionlib::SimpleClientGoalState& state, const tmc_omni_path_follower::PathFollowerResultConstPtr& result);

@@ -6,7 +6,7 @@
   <arg name="gui" default="false" />
   <arg name="rviz" default="false"/>
   <arg name="gazebo_visualization" default="false" />
-  <arg name="use_manipulation" default="false" />
+  <arg name="use_manipulation" default="true" />
   <arg name="use_navigation" default="true" />
   <arg name="use_perception" default="true" />
   <arg name="use_task" default="false" />
