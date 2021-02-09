@@ -73,6 +73,7 @@ add_library(${PROJECT_NAME}_lib
   # src/dummy_motion_planner.cpp
   src/SDFHandler.cpp
   src/PlanningServer.cpp
+  src/GraphMaintainer.cpp
 )
 
 add_message_files(
@@ -126,6 +127,8 @@ catkin_package(
 add_executable(planning_server_node test_scripts/planning_server_node.cpp 
 src/SDFHandler.cpp
 src/PlanningServer.cpp
+src/GraphMaintainer.cpp
+
 )
 
 target_link_libraries(planning_server_node 

@@ -2,6 +2,7 @@
 #define SDF_MP_INTEGRATION_PLANNING_SERVER_H
 
 #include <string.h>
+#include <math.h> 
 
 #include <geometry_msgs/PoseStamped.h>
 #include <sensor_msgs/JointState.h>
@@ -48,6 +49,7 @@
 #include <gtsam/inference/Symbol.h>
 
 #include <sdf_mp_integration/SDFHandler.h>
+// #include <sdf_mp_integration/GraphMaintainer.h>
 #include <sdf_mp_integration/ObstacleFactor.h>
 #include <sdf_mp_integration/ObstacleFactorGP.h>
 
@@ -60,6 +62,9 @@
 #include <tmc_omni_path_follower/PathFollowerAction.h>
 #include <actionlib/client/simple_action_client.h>
 #include <control_msgs/FollowJointTrajectoryAction.h>
+#include <control_msgs/JointTrajectoryControllerState.h>
+
+#include <chrono>
 
 namespace sdf_mp_integration {
 
@@ -67,16 +72,17 @@ class PlanningServer{
 
     private:
       ros::NodeHandle node_;
-      ros::Subscriber base_goal_sub_, arm_goal_sub_, full_goal_sub_, joint_sub_;
+      ros::Subscriber base_goal_sub_, arm_goal_sub_, full_goal_sub_, joint_sub_, actual_base_sub_;
 
-      std::string base_goal_sub_topic_, arm_goal_sub_topic_, full_goal_sub_topic_;
+      std::string base_goal_sub_topic_, arm_goal_sub_topic_, full_goal_sub_topic_, actual_base_sub_topic_;
       double resolution_;
       tf::TransformListener listener;
       sdf_mp_integration::SDFHandler<GPUVoxelsPtr>* sdf_handler_;
       ros::Publisher path_pub_, init_path_pub_, plan_msg_pub;
-      size_t total_time_step_;
       actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction> execute_ac_ ;
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> execute_arm_ac_ ;
+      actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> base_traj_ac_ ;
+
       int arm_dof_ = 5;
 
       int arm_lift_joint_ind = 1;  
@@ -86,9 +92,32 @@ class PlanningServer{
       int wrist_roll_joint_ind = 12;  
       gtsam::Vector5 joint_state_;
 
+
+      std::vector<ros::Time> base_time_buffer_;
+      std::vector<float> base_x_buffer_, base_y_buffer_, base_t_buffer_;
+
+      // sdf_mp_integration::GraphMaintainer<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
+      //                                 sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
+      //                                 sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+      //                                 gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector> maintainer_;
+
+      int total_time_step_;
+
+      // int total_time_step_;
+      float total_time_;
+      float epsilon_;
+      float cost_sigma_;
+      int obs_check_inter_;
+      bool flag_pos_limit_, flag_vel_limit_;
+      float delta_t_;
+      gpmp2::TrajOptimizerSetting setting_;
+      gtsam::NonlinearFactorGraph graph_;
+
     public:
       //  constructor
-      PlanningServer() : execute_ac_("path_follow_action", true), execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true) {}      
+      PlanningServer() :  execute_ac_("path_follow_action", true), 
+                          base_traj_ac_("/hsrb/omni_base_controller/follow_joint_trajectory", true), 
+                          execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true) {}      
       
       PlanningServer(ros::NodeHandle node);
 
@@ -97,9 +126,15 @@ class PlanningServer{
 
       gtsam::Values getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose, const float delta_t);
 
-      // void recordExecutedTrajectory();
-      // void recordActualBase(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg);
+      void clearBuffers();
+      void recordExecutedTrajectory();
+      void recordActualBase(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg);
+
       void jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg);
+
+      void createSettings();
+      void createSettings(float total_time, int total_time_step);
+
 
       //
       void armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg);
@@ -107,7 +142,8 @@ class PlanningServer{
       void fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg);
       void visualiseBasePlan(const gtsam::Values& plan);
       void visualiseInitialBasePlan(const gtsam::Values& plan);
-      void executeBasePlan(const gtsam::Values& plan);
+      void executePathFollow(const gtsam::Values& plan);
+      void executeBaseTrajectory(const gtsam::Values& plan);
       void executeArmPlan(const gtsam::Values& plan, const float delta_t);
       void executeFullPlan(const gtsam::Values& plan, const float delta_t);
       void publishPlanMsg(const gtsam::Values& plan);
@@ -122,6 +158,15 @@ class PlanningServer{
                                                     const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
                                                     const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel,
                                                     const gtsam::Values& init_values, const gpmp2::TrajOptimizerSetting& setting);
+
+      template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
+                class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
+      gtsam::Values constructGraph(const ROBOT& arm, const SDFHandler& sdf_handler,
+                                    const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
+                                    const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel,
+                                    const gpmp2::TrajOptimizerSetting& setting);
+
+      gtsam::Values optimize(const gtsam::Values& init_values, const gpmp2::TrajOptimizerSetting& setting);
 
       // void armGoalCallback(const messagetype::ConstPtr& msg);
       // void fullGoalCallback(const messagetype::ConstPtr& msg);
