@@ -49,7 +49,6 @@
 #include <gtsam/inference/Symbol.h>
 
 #include <sdf_mp_integration/SDFHandler.h>
-// #include <sdf_mp_integration/GraphMaintainer.h>
 #include <sdf_mp_integration/ObstacleFactor.h>
 #include <sdf_mp_integration/ObstacleFactorGP.h>
 
@@ -96,11 +95,6 @@ class PlanningServer{
       std::vector<ros::Time> base_time_buffer_;
       std::vector<float> base_x_buffer_, base_y_buffer_, base_t_buffer_;
 
-      // sdf_mp_integration::GraphMaintainer<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
-      //                                 sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
-      //                                 sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-      //                                 gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector> maintainer_;
-
       int total_time_step_;
 
       // int total_time_step_;
@@ -112,6 +106,8 @@ class PlanningServer{
       float delta_t_;
       gpmp2::TrajOptimizerSetting setting_;
       gtsam::NonlinearFactorGraph graph_;
+
+      std::vector<gtsam::Values> trajectory_evolution_;
 
     public:
       //  constructor
@@ -140,13 +136,13 @@ class PlanningServer{
       void armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg);
       void baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
       void fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg);
-      void visualiseBasePlan(const gtsam::Values& plan);
-      void visualiseInitialBasePlan(const gtsam::Values& plan);
+      void visualiseBasePlan(const gtsam::Values& plan) const;
+      void visualiseInitialBasePlan(const gtsam::Values& plan) const;
       void executePathFollow(const gtsam::Values& plan);
       void executeBaseTrajectory(const gtsam::Values& plan);
       void executeArmPlan(const gtsam::Values& plan, const float delta_t);
       void executeFullPlan(const gtsam::Values& plan, const float delta_t);
-      void publishPlanMsg(const gtsam::Values& plan);
+      void publishPlanMsg(const gtsam::Values& plan) const;
 
       void doneCb(const actionlib::SimpleClientGoalState& state, const tmc_omni_path_follower::PathFollowerResultConstPtr& result);
       void activeCb();
@@ -161,12 +157,12 @@ class PlanningServer{
 
       template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
                 class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
-      gtsam::Values constructGraph(const ROBOT& arm, const SDFHandler& sdf_handler,
+      void constructGraph(const ROBOT& arm,
                                     const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
-                                    const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel,
-                                    const gpmp2::TrajOptimizerSetting& setting);
+                                    const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel);
 
-      gtsam::Values optimize(const gtsam::Values& init_values, const gpmp2::TrajOptimizerSetting& setting);
+      gtsam::Values optimize(const gtsam::Values& init_values);
+      gtsam::Values manualOptimize(const gtsam::Values& init_values, bool iter_no_increase = true);
 
       // void armGoalCallback(const messagetype::ConstPtr& msg);
       // void fullGoalCallback(const messagetype::ConstPtr& msg);

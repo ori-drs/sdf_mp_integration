@@ -223,31 +223,39 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     visualiseInitialBasePlan(init_values);
 
     // HSR
-    gtsam::Values res = this->MarkTrajOptimize<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
-                                      sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
-                                      sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm, *sdf_handler_, start_pose, start_vel, end_pose, end_vel, init_values, setting_);
+    // gtsam::Values res = this->MarkTrajOptimize<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
+    //                                   sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
+    //                                   sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+    //                                   gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm, *sdf_handler_, start_pose, start_vel, end_pose, end_vel, init_values, setting_);
 
     // maintainer_ = sdf_mp_integration::GraphMaintainer<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
     //                                   sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
     //                                   sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
     //                                   gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm, *sdf_handler_, start_pose, start_vel, end_pose, end_vel, init_values, setting_);
-
-    // this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
-    //                                   sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
-    //                                   sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-    //                                   gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm, *sdf_handler_, start_pose, start_vel, end_pose, end_vel, setting_);
-
     // gtsam::Values res = maintainer_.optimize(init_values, setting_);
+
+    this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
+                                      sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
+                                      sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm, start_pose, start_vel, end_pose, end_vel);
+
     
-    // gtsam::Values res = this->optimize(init_values, setting_);
+    gtsam::Values res = this->manualOptimize(init_values);
+    // gtsam::Values res = this->optimize(init_values);
 
 
     std::cout << "Optimized" << std::endl;
     
+    for (size_t i = 0; i < trajectory_evolution_.size(); i++)
+    {
+      visualiseBasePlan(trajectory_evolution_[i]);
+      ros::Duration(0.2).sleep();
+    }
+    
+
     // Now visualise the base motion
-    // publishPlanMsg(res);
-    visualiseBasePlan(res);
+    publishPlanMsg(res);
+    // visualiseBasePlan(res);
 
     // clearBuffers();
     // executePathFollow(res);
@@ -456,7 +464,7 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
   // Create the factor graph problem 
 };
 
-void sdf_mp_integration::PlanningServer::publishPlanMsg(const gtsam::Values& plan){
+void sdf_mp_integration::PlanningServer::publishPlanMsg(const gtsam::Values& plan) const{
     sdf_mp_integration::GtsamValues plan_msg;
     plan_msg.delta_t = delta_t_;
 
@@ -488,7 +496,7 @@ void sdf_mp_integration::PlanningServer::publishPlanMsg(const gtsam::Values& pla
     plan_msg_pub.publish(plan_msg);
 };
 
-void sdf_mp_integration::PlanningServer::visualiseInitialBasePlan(const gtsam::Values& plan){
+void sdf_mp_integration::PlanningServer::visualiseInitialBasePlan(const gtsam::Values& plan) const{
     nav_msgs::Path path;
     path.header.frame_id = "odom";
 
@@ -518,7 +526,7 @@ void sdf_mp_integration::PlanningServer::visualiseInitialBasePlan(const gtsam::V
     init_path_pub_.publish(path);
 };
 
-void sdf_mp_integration::PlanningServer::visualiseBasePlan(const gtsam::Values& plan){
+void sdf_mp_integration::PlanningServer::visualiseBasePlan(const gtsam::Values& plan) const{
     nav_msgs::Path path;
     path.header.frame_id = "odom";
 
@@ -550,7 +558,7 @@ void sdf_mp_integration::PlanningServer::visualiseBasePlan(const gtsam::Values& 
     path_pub_.publish(path);
 };
 
-void sdf_mp_integration::PlanningServer::executePathFollow(const gtsam::Values& plan){
+void sdf_mp_integration::PlanningServer::executePathFollow(const gtsam::Values& plan) {
     tmc_omni_path_follower::PathFollowerGoal path_goal;
     path_goal.path_with_goal.header.frame_id = "odom";
 
@@ -584,7 +592,7 @@ void sdf_mp_integration::PlanningServer::executePathFollow(const gtsam::Values& 
 
 };
 
-void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Values& plan){
+void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Values& plan) {
     control_msgs::FollowJointTrajectoryGoal trajectory_goal;
     // trajectory_goal.trajectory.header.stamp = ros::Time::now();
     trajectory_goal.trajectory.header.frame_id = "odom";
@@ -614,7 +622,7 @@ void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Valu
     base_traj_ac_.sendGoal(trajectory_goal);    
 };
 
-void sdf_mp_integration::PlanningServer::executeArmPlan(const gtsam::Values& plan, const float delta_t){
+void sdf_mp_integration::PlanningServer::executeArmPlan(const gtsam::Values& plan, const float delta_t) {
     control_msgs::FollowJointTrajectoryGoal arm_goal;
 
     arm_goal.trajectory.joint_names.push_back("arm_lift_joint");      
@@ -661,7 +669,7 @@ void sdf_mp_integration::PlanningServer::executeArmPlan(const gtsam::Values& pla
 
 };
 
-void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& plan, const float delta_t){
+void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& plan, const float delta_t) {
     control_msgs::FollowJointTrajectoryGoal arm_goal;
     tmc_omni_path_follower::PathFollowerGoal path_goal;
 
@@ -821,79 +829,189 @@ gtsam::Values sdf_mp_integration::PlanningServer::MarkTrajOptimize(
 
 template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
     class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
-gtsam::Values sdf_mp_integration::PlanningServer::constructGraph(
-    const ROBOT& arm, const SDFHandler& sdf_handler,
+void sdf_mp_integration::PlanningServer::constructGraph(
+    const ROBOT& arm,
     const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
-    const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel,
-    const gpmp2::TrajOptimizerSetting& setting) {
+    const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel) {
 
   using namespace gtsam;
 
   graph_ = gtsam::NonlinearFactorGraph();
 
   // GP interpolation setting
-  const double delta_t = setting.total_time / static_cast<double>(setting.total_step);
-  const double inter_dt = delta_t / static_cast<double>(setting.obs_check_inter + 1);
+  const double delta_t = setting_.total_time / static_cast<double>(setting_.total_step);
+  const double inter_dt = delta_t / static_cast<double>(setting_.obs_check_inter + 1);
   
-  for (size_t i = 0; i < setting.total_step; i++) {
+  for (size_t i = 0; i < setting_.total_step; i++) {
     Key pose_key = Symbol('x', i);
     Key vel_key = Symbol('v', i);
 
     // start and end
     if (i == 0) {
 
-      graph_.add(PriorFactor<typename ROBOT::Pose>(pose_key, start_conf, setting.conf_prior_model));
-      graph_.add(PriorFactor<typename ROBOT::Velocity>(vel_key, start_vel, setting.vel_prior_model));
+      graph_.add(PriorFactor<typename ROBOT::Pose>(pose_key, start_conf, setting_.conf_prior_model));
+      graph_.add(PriorFactor<typename ROBOT::Velocity>(vel_key, start_vel, setting_.vel_prior_model));
 
-    } else if (i == setting.total_step - 1) {
-      graph_.add(PriorFactor<typename ROBOT::Pose>(pose_key, end_conf, setting.conf_prior_model));
-      graph_.add(PriorFactor<typename ROBOT::Velocity>(vel_key, end_vel, setting.vel_prior_model));
+    } else if (i == setting_.total_step - 1) {
+      graph_.add(PriorFactor<typename ROBOT::Pose>(pose_key, end_conf, setting_.conf_prior_model));
+      graph_.add(PriorFactor<typename ROBOT::Velocity>(vel_key, end_vel, setting_.vel_prior_model));
     }
 
-    if (setting.flag_pos_limit) {
+    if (setting_.flag_pos_limit) {
       // joint position limits
-      graph_.add(LIMIT_FACTOR_POS(pose_key, setting.pos_limit_model, setting.joint_pos_limits_down, 
-          setting.joint_pos_limits_up, setting.pos_limit_thresh));
+      graph_.add(LIMIT_FACTOR_POS(pose_key, setting_.pos_limit_model, setting_.joint_pos_limits_down, 
+          setting_.joint_pos_limits_up, setting_.pos_limit_thresh));
     }
-    if (setting.flag_vel_limit) {
+    if (setting_.flag_vel_limit) {
       // velocity limits
-      graph_.add(LIMIT_FACTOR_VEL(vel_key, setting.vel_limit_model, setting.vel_limits, 
-          setting.vel_limit_thresh));
+      graph_.add(LIMIT_FACTOR_VEL(vel_key, setting_.vel_limit_model, setting_.vel_limits, 
+          setting_.vel_limit_thresh));
     }
 
     // non-interpolated cost factor
-    graph_.add(OBS_FACTOR(pose_key, arm, sdf_handler, setting.cost_sigma, setting.epsilon));
+    graph_.add(OBS_FACTOR(pose_key, arm, *sdf_handler_, setting_.cost_sigma, setting_.epsilon));
 
     if (i > 0) {
       Key last_pose_key = Symbol('x', i-1);
       Key last_vel_key = Symbol('v', i-1);
 
       // interpolated cost factor
-      if (setting.obs_check_inter > 0) {
-        for (size_t j = 1; j <= setting.obs_check_inter; j++) {
+      if (setting_.obs_check_inter > 0) {
+        for (size_t j = 1; j <= setting_.obs_check_inter; j++) {
           const double tau = inter_dt * static_cast<double>(j);
-          graph_.add(OBS_FACTOR_GP(last_pose_key, last_vel_key, pose_key, vel_key, arm, sdf_handler,
-              setting.cost_sigma, setting.epsilon, setting.Qc_model, delta_t, tau));
+          graph_.add(OBS_FACTOR_GP(last_pose_key, last_vel_key, pose_key, vel_key, arm, *sdf_handler_,
+              setting_.cost_sigma, setting_.epsilon, setting_.Qc_model, delta_t, tau));
         }
       }
 
       // GP factor
-      graph_.add(GP(last_pose_key, last_vel_key, pose_key, vel_key, delta_t, setting.Qc_model));
+      graph_.add(GP(last_pose_key, last_vel_key, pose_key, vel_key, delta_t, setting_.Qc_model));
     }
   }
+
+  std::cout << "Graph constructed successfully" << std::endl;
+
 }
 
-gtsam::Values sdf_mp_integration::PlanningServer::optimize(const gtsam::Values& init_values, const gpmp2::TrajOptimizerSetting& setting){
+gtsam::Values sdf_mp_integration::PlanningServer::optimize(const gtsam::Values& init_values){
 
-  gtsam::Values res  = gpmp2::optimize(graph_, init_values, setting);
+  gtsam::Values res  = gpmp2::optimize(graph_, init_values, setting_);
+
 
   // save factor graph as graphviz dot file
   // Render to PDF using "fdp Pose2SLAMExample.dot -Tpdf > graph.pdf"
-  ofstream os("hsr_factor_graph.dot");
-  graph_.saveGraph(os, res);
+  // ofstream os("hsr_factor_graph.dot");
+  // graph_.saveGraph(os, res);
 
-  // Also print out to console
-  graph_.saveGraph(cout, res);
+  // // Also print out to console
+  // graph_.saveGraph(cout, res);
 
   return res;
+};
+
+gtsam::Values sdf_mp_integration::PlanningServer::manualOptimize(const gtsam::Values& init_values, bool iter_no_increase){
+
+  using namespace std;
+  using namespace gtsam;
+
+  std::shared_ptr<gtsam::NonlinearOptimizer> opt;
+  std::shared_ptr<gtsam::NonlinearOptimizerParams> params;
+
+  trajectory_evolution_.clear();
+
+  // init the params/opt and type specific settings
+  if (setting_.opt_type == gpmp2::TrajOptimizerSetting::Dogleg) {
+    params = std::shared_ptr<gtsam::NonlinearOptimizerParams>(new DoglegParams());
+    // trust region ranage, 0.2 rad or meter, no whitenning, not sure make sense or not 
+    dynamic_cast<DoglegParams*>(params.get())->setDeltaInitial(0.2);
+  
+  } else if (setting_.opt_type == gpmp2::TrajOptimizerSetting::LM) {
+    params = std::shared_ptr<gtsam::NonlinearOptimizerParams>(new LevenbergMarquardtParams());
+    dynamic_cast<LevenbergMarquardtParams*>(params.get())->setlambdaInitial(100.0);
+  
+  } else if (setting_.opt_type == gpmp2::TrajOptimizerSetting::GaussNewton) {
+    params = std::shared_ptr<gtsam::NonlinearOptimizerParams>(new GaussNewtonParams());
+  }
+
+  // common settings
+  params->setMaxIterations(setting_.max_iter);
+  params->setRelativeErrorTol(setting_.rel_thresh);
+  if (setting_.opt_verbosity >= gpmp2::TrajOptimizerSetting::Error)
+    params->setVerbosity("ERROR");
+
+  // optimizer
+  if (setting_.opt_type == gpmp2::TrajOptimizerSetting::Dogleg) {
+    opt = std::shared_ptr<gtsam::NonlinearOptimizer>(new DoglegOptimizer(
+      graph_, init_values, *(dynamic_cast<DoglegParams*>(params.get()))));
+  } else if (setting_.opt_type == gpmp2::TrajOptimizerSetting::LM) {
+    opt = std::shared_ptr<gtsam::NonlinearOptimizer>(new LevenbergMarquardtOptimizer(
+      graph_, init_values, *(dynamic_cast<LevenbergMarquardtParams*>(params.get()))));
+  } else if (setting_.opt_type == gpmp2::TrajOptimizerSetting::GaussNewton) {
+    opt = std::shared_ptr<gtsam::NonlinearOptimizer>(new GaussNewtonOptimizer(
+      graph_, init_values, *(dynamic_cast<GaussNewtonParams*>(params.get()))));
+  }
+
+  double currentError = opt->error();
+  
+  // check if we're already close enough
+  if (currentError <= params->errorTol) {
+    if (params->verbosity >= NonlinearOptimizerParams::ERROR)
+      cout << "Exiting, as error = " << currentError << " < " << params->errorTol << endl;
+    return opt->values();
+  }
+
+  // Maybe show output
+  if (params->verbosity >= NonlinearOptimizerParams::ERROR)
+    cout << "Initial error: " << currentError << endl;
+
+  // Return if we already have too many iterations
+  if (opt->iterations() >= params->maxIterations) {
+    if (params->verbosity >= NonlinearOptimizerParams::TERMINATION)
+      cout << "iterations: " << opt->iterations() << " > " << params->maxIterations << endl;
+    return opt->values();
+  }
+
+  Values last_values;
+
+  // Iterative loop
+  do {
+    // iteration
+    currentError = opt->error();
+    // copy last values in case error increase
+    if (iter_no_increase)
+      last_values = opt->values();
+    opt->iterate();
+    // Maybe show output
+    if (params->verbosity >= NonlinearOptimizerParams::ERROR)
+      cout << "newError: " << opt->error() << endl;
+
+    // Store the result
+    trajectory_evolution_.push_back(opt->values());
+
+  } while (opt->iterations() < params->maxIterations &&
+      !checkConvergence(params->relativeErrorTol, params->absoluteErrorTol, params->errorTol,
+          currentError, opt->error(), params->verbosity));
+
+  // Printing if verbose
+  if (params->verbosity >= NonlinearOptimizerParams::TERMINATION) {
+    cout << "iterations: " << opt->iterations() << " > " << params->maxIterations << endl;
+    if (opt->iterations() >= params->maxIterations)
+      cout << "Terminating because reached maximum iterations" << endl;
+  }
+
+  // check whether values increase
+  // if increase use last copied values
+  if (opt->error() > currentError) {
+    if (iter_no_increase) {
+      if (params->verbosity >= NonlinearOptimizerParams::ERROR)
+        cout << "Error increase, use last copied values" << endl;
+      trajectory_evolution_.push_back(last_values);
+      return last_values;
+    } else {
+      return opt->values();
+    }
+  } else {
+    return opt->values();
+  }
+
 };
