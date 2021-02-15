@@ -49,7 +49,7 @@ namespace sdf_mp_integration {
     private:
       SDFPACKAGEPTR sdf_package_ptr_;
     public:
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+      
       //  constructor
       SDFHandler() {}      
       

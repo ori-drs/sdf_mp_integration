@@ -64,6 +64,7 @@
 #include <control_msgs/JointTrajectoryControllerState.h>
 
 #include <chrono>
+#include <mutex>   
 
 namespace sdf_mp_integration {
 
@@ -98,7 +99,7 @@ class PlanningServer{
       gtsam::Vector5 joint_state_, joint_v_state_;
       gtsam::Vector3 odom_state_, odom_v_state_;
 
-
+      gpmp2::Pose2MobileVetLinArmModel arm_;
       std::vector<ros::Time> base_time_buffer_;
       std::vector<float> base_x_buffer_, base_y_buffer_, base_t_buffer_;
 
@@ -118,6 +119,9 @@ class PlanningServer{
       std::vector<gtsam::Values> trajectory_evolution_;
       int last_idx_updated_;
       gtsam::Values traj_res_;
+
+      std::mutex replan_mtx;
+      // double traj_error_;
 
     public:
 
@@ -160,7 +164,8 @@ class PlanningServer{
       void visualiseBasePlan(const gtsam::Values& plan) const;
       void visualiseInitialBasePlan(const gtsam::Values& plan) const;
       void executePathFollow(const gtsam::Values& plan);
-      void executeBaseTrajectory(const gtsam::Values& plan);
+      void executeBaseTrajectory(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
+
       void executeArmPlan(const gtsam::Values& plan, const float delta_t);
       void executeFullPlan(const gtsam::Values& plan, const float delta_t);
       void publishPlanMsg(const gtsam::Values& plan) const;
@@ -177,6 +182,7 @@ class PlanningServer{
 
       gtsam::Values optimize(const gtsam::Values& init_values);
       gtsam::Values manualOptimize(const gtsam::Values& init_values, bool iter_no_increase = true);
+      gtsam::Values optimize(const gtsam::Values& init_values, double& final_err, bool iter_no_increase = true);
 
       // void armGoalCallback(const messagetype::ConstPtr& msg);
       // void fullGoalCallback(const messagetype::ConstPtr& msg);
