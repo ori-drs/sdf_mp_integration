@@ -15,22 +15,23 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
     node_.param<std::string>("base_goal_sub_topic", base_goal_sub_topic_, "move_base_simple/goal");
     node_.param<std::string>("arm_goal_sub_topic", arm_goal_sub_topic_, "arm_goal");
     node_.param<std::string>("full_goal_sub_topic", full_goal_sub_topic_, "full_goal");
-    // node_.param<std::string>("actual_base_sub_topic", actual_base_sub_topic_, "/hsrb/omni_base_controller/state");
     node_.param<double>("resolution", resolution_, 0.05);
-    
-    // total_time_step_ = 21;
+    delta_t_ = 0.5;
 
     // Subscriptions
     base_goal_sub_ = node_.subscribe(base_goal_sub_topic_, 10, &PlanningServer::baseGoalCallback, this);
     arm_goal_sub_ = node_.subscribe(arm_goal_sub_topic_, 10, &PlanningServer::armGoalCallback, this);
     full_goal_sub_ = node_.subscribe(full_goal_sub_topic_, 10, &PlanningServer::fullGoalCallback, this);
 
-    // actual_base_sub_ = node_.subscribe(actual_base_sub_topic_, 1000, &PlanningServer::recordActualBase, this);
     joint_sub_ = node_.subscribe("/hsrb/joint_states", 1, &PlanningServer::jointStateCallback, this);
+    odom_sub_ = node_.subscribe("/hsrb/omni_base_controller/state", 1, &PlanningServer::odomStateCallback, this);
 
     path_pub_ = node_.advertise<nav_msgs::Path>("gpmp2_plan", 1000);
     init_path_pub_ = node_.advertise<nav_msgs::Path>("gpmp2_init_plan", 1000);
     plan_msg_pub = node_.advertise<sdf_mp_integration::GtsamValues>("gpmp2_results", 1);
+
+    arm_ = GenerateHSRArm();
+
 
     // execute_ac_ = actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction>("path_follow_action", true);
     ROS_INFO("Waiting for action servers to start.");
@@ -46,11 +47,6 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
     gpu_voxels_ptr = new gpu_voxels_ros::GPUVoxelsHSRServer(node_);
     sdf_handler_ = new sdf_mp_integration::SDFHandler<GPUVoxelsPtr>(gpu_voxels_ptr);
     std::cout << "PlanningServer ready..." << std::endl;
-
-    // Load the planning tool
-
-    // setting_ = gpmp2::TrajOptimizerSetting(arm_dof_+3);
-    // createSettings();
 
     // Pause for mapping to take effect
     ros::Duration(2).sleep();
@@ -97,6 +93,23 @@ void sdf_mp_integration::PlanningServer::jointStateCallback(const sensor_msgs::J
     joint_state_[2] = msg->position[arm_roll_joint_ind];
     joint_state_[3] = msg->position[wrist_flex_joint_ind];
     joint_state_[4] = msg->position[wrist_roll_joint_ind];
+
+    joint_v_state_[0] = msg->velocity[arm_lift_joint_ind];
+    joint_v_state_[1] = msg->velocity[arm_flex_joint_ind];
+    joint_v_state_[2] = msg->velocity[arm_roll_joint_ind];
+    joint_v_state_[3] = msg->velocity[wrist_flex_joint_ind];
+    joint_v_state_[4] = msg->velocity[wrist_roll_joint_ind];
+};
+
+void sdf_mp_integration::PlanningServer::odomStateCallback(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg)
+{
+    odom_state_[0] = msg->actual.positions[odom_x_ind];
+    odom_state_[1] = msg->actual.positions[odom_y_ind];
+    odom_state_[2] = msg->actual.positions[odom_t_ind];
+
+    odom_v_state_[0] = msg->actual.velocities[odom_x_ind];
+    odom_v_state_[1] = msg->actual.velocities[odom_y_ind];
+    odom_v_state_[2] = msg->actual.velocities[odom_t_ind];
 };
 
 void sdf_mp_integration::PlanningServer::createSettings(float total_time, int total_time_step){
@@ -148,7 +161,8 @@ void sdf_mp_integration::PlanningServer::createSettings(float total_time, int to
     setting_.set_conf_prior_model(pose_fix_sigma);
     setting_.set_vel_prior_model(vel_fix_sigma);
     setting_.set_Qc_model(Qc);
-    setting_.setVerbosityError();
+    // setting_.setVerbosityError();
+    setting_.setVerbosityNone();
     setting_.set_flag_pos_limit(flag_pos_limit_);
     setting_.set_flag_vel_limit(flag_vel_limit_);
 
@@ -169,29 +183,123 @@ void sdf_mp_integration::PlanningServer::createSettings(){
     createSettings(total_time_, total_time_step_);
 }
 
+void sdf_mp_integration::PlanningServer::getCurrentPose(gpmp2::Pose2Vector &current_pose, gtsam::Vector &current_vel){
+    
+    gtsam::Pose2 base_pose2(odom_state_[0], odom_state_[1], odom_state_[2]);
+
+    current_pose = gpmp2::Pose2Vector(base_pose2, joint_state_);
+
+    current_vel[0] = odom_v_state_[0];
+    current_vel[1] = odom_v_state_[0];
+    current_vel[2] = odom_v_state_[0];
+
+    current_vel[3] = joint_v_state_[0];
+    current_vel[4] = joint_v_state_[1];
+    current_vel[5] = joint_v_state_[2];
+    current_vel[6] = joint_v_state_[3];
+    current_vel[7] = joint_v_state_[4];
+}
+
+void sdf_mp_integration::PlanningServer::updateState(int idx){
+  // Adds prior factors to the factor graph to say where we are now
+
+  gpmp2::Pose2Vector current_pose;
+  gtsam::Vector current_vel(8);
+  this->getCurrentPose(current_pose, current_vel);
+
+  // estimate for pose and vel at given index
+  graph_.add(gtsam::PriorFactor<gpmp2::Pose2Vector>(gtsam::Symbol('x', idx), current_pose, setting_.conf_prior_model));
+  graph_.add(gtsam::PriorFactor<gtsam::Vector>(gtsam::Symbol('v', idx), current_vel, setting_.vel_prior_model));
+}
+
+bool sdf_mp_integration::PlanningServer::isTaskComplete(){
+  
+  // Check if we are within tolerance of the goal state
+  return (abs(odom_state_[0] - goal_state_.pose().x()) <= 0.05 &&
+  abs(odom_state_[1] - goal_state_.pose().y()) <= 0.05 &&
+  abs(odom_state_[2] - goal_state_.pose().theta()) <= 0.02 && // about 2.5 degrees
+
+  abs(joint_state_[0] - goal_state_.configuration()[0]) <= 0.02 &&
+  abs(joint_state_[1] - goal_state_.configuration()[0]) <= 0.02 &&
+  abs(joint_state_[2] - goal_state_.configuration()[0]) <= 0.02 &&
+  abs(joint_state_[3] - goal_state_.configuration()[0]) <= 0.02 &&
+  abs(joint_state_[4] - goal_state_.configuration()[0]) <= 0.02);
+
+};
+
+void sdf_mp_integration::PlanningServer::replan(){
+  
+  std::cout << "Replan event activated" << std::endl;
+
+  if (!isTaskComplete())
+  {
+    std::cout << "Task still in progress. Replanning..." << std::endl;
+
+    double traj_error, new_traj_error, err_improvement;
+    // Calculate which index variable node we're at
+    ros::WallTime current_t = ros::WallTime::now();
+    ros::WallDuration dur = current_t - begin_t_;
+    
+    // If less than 1s left, finish
+    if (dur.toSec() >= setting_.total_time - 1)
+    {
+      return;
+    }
+
+    double float_idx = dur.toSec()/delta_t_;
+    int idx = round(float_idx);
+
+    std::cout << "idx: " << idx << std::endl;
+
+    if (( abs(float_idx - (double) idx) < 0.1) && (idx > last_idx_updated_))
+    {
+      // Update confs
+      std::cout << "Adding latest state..." << std::endl;
+      updateState(idx);
+      last_idx_updated_ = idx;
+    }
+
+    // Check if it 
+    gtsam::Values res = this->optimize(traj_res_, new_traj_error);
+    traj_error = graph_.error(traj_res_);    
+    // new_traj_error = graph_.error(res);
+
+    std::cout << "Current error: " << traj_error << "\t New error: " << new_traj_error << std::endl;
+    
+    err_improvement = (traj_error - new_traj_error)/traj_error;
+
+    // If cost is reduced by more than 10%, update
+    
+    if (err_improvement > 0.2){
+      printf("Found a better trajectory. Improvement: %f", err_improvement);
+      executeBaseTrajectory(res, idx, 0.5);
+      visualiseBasePlan(res);
+      traj_res_ = res;
+    }
+    else{
+      return;
+    }
+
+
+  } else{
+    replan_timer_.stop();
+    std::cout << "Finished re-planning - goal reached!" << std::endl;
+
+  }
+
+}
+
+void sdf_mp_integration::PlanningServer::replan(const ros::TimerEvent& /*event*/){
+  replan_mtx.lock();
+  replan();
+  replan_mtx.unlock();
+}
+
 void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 
-    // Get current base pose
-    tf::StampedTransform transform;
-    try{
-      listener.lookupTransform("/odom", "/base_link", ros::Time(0), transform);
-    }
-    catch (tf::TransformException ex){
-      ROS_ERROR("%s",ex.what());
-    }
-
-    // Set start pose
-    gtsam::Vector start_conf(5);
-    start_conf = joint_state_;
-    
-    // gtsam::Vector start_conf(dgpmp2::SetHSRConf("neutral"));
-    gtsam::Vector start_vel = gtsam::Vector::Zero(arm_dof_+3);
-    tf::Matrix3x3 goal_m(transform.getRotation());
-    double start_roll, start_pitch, start_yaw;
-    goal_m.getRPY(start_roll, start_pitch, start_yaw);
-    gtsam::Pose2 start_base_pose(transform.getOrigin().x(), transform.getOrigin().y(), start_yaw);
-    gpmp2::Pose2Vector start_pose(start_base_pose, start_conf);
-
+    gpmp2::Pose2Vector start_pose;
+    gtsam::Vector start_vel(8);
+    this->getCurrentPose(start_pose, start_vel);
 
     // Get goal pose
     gtsam::Vector end_conf = dgpmp2::SetHSRConf("neutral");
@@ -205,15 +313,11 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     double end_roll, end_pitch, end_yaw;
     m.getRPY(end_roll, end_pitch, end_yaw);
     gpmp2::Pose2Vector end_pose(gtsam::Pose2(msg->pose.position.x, msg->pose.position.y, end_yaw), end_conf);
-
-    gpmp2::Pose2MobileVetLinArmModel arm = GenerateHSRArm();
-
+    goal_state_ = end_pose;
 
     // Determine how long the trajectory should be and how it should be split up
-    delta_t_ = 0.5;
-    float est_traj_dist = sqrt(std::pow( msg->pose.position.x - transform.getOrigin().x(), 2) + std::pow(msg->pose.position.y - (float) transform.getOrigin().y(), 2));
+    float est_traj_dist = sqrt(std::pow( msg->pose.position.x - start_pose.pose().x(), 2) + std::pow(msg->pose.position.y - start_pose.pose().y(), 2));
     int est_traj_time = ceil( est_traj_dist / 0.15);
-    // int est_steps = round(est_traj_time/0.25) + 1;
     int est_steps = round(est_traj_time/delta_t_) + 1;
 
     createSettings((float) est_traj_time, est_steps);
@@ -222,27 +326,79 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     gtsam::Values init_values = getInitTrajectory(start_pose, end_pose, delta_t_);
     visualiseInitialBasePlan(init_values);
 
-    // HSR
-    // gtsam::Values res = this->MarkTrajOptimize<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
-    //                                   sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
-    //                                   sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-    //                                   gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm, *sdf_handler_, start_pose, start_vel, end_pose, end_vel, init_values, setting_);
+    constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
+                                      sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
+                                      sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, end_pose, end_vel);
 
-    // maintainer_ = sdf_mp_integration::GraphMaintainer<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
-    //                                   sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
-    //                                   sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-    //                                   gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm, *sdf_handler_, start_pose, start_vel, end_pose, end_vel, init_values, setting_);
-    // gtsam::Values res = maintainer_.optimize(init_values, setting_);
+    
+
+    bool replanning = true;
+
+    if (replanning)
+    {
+      last_idx_updated_ = 0;
+
+      traj_res_ = this->optimize(init_values);
+
+      // Start timer and execute
+      begin_t_ = ros::WallTime::now();
+      executeBaseTrajectory(traj_res_);
+      visualiseBasePlan(traj_res_);
+
+      std::cout << "Executing. Now starting replan timer for every: " << round(1.0/delta_t_) << "Hz" << std::endl;
+      replan_timer_ = node_.createTimer(ros::Duration( round(1.0/delta_t_)), &sdf_mp_integration::PlanningServer::replan, this);
+    }
+    else{
+      
+      traj_res_ = this->optimize(init_values);
+      executeBaseTrajectory(traj_res_);
+
+      for (size_t i = 0; i < trajectory_evolution_.size(); i++){
+        visualiseBasePlan(trajectory_evolution_[i]);
+        ros::Duration(0.2).sleep();
+      }
+
+      publishPlanMsg(traj_res_);
+    }
+    
+
+};
+
+void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg){
+
+    gpmp2::Pose2Vector start_pose;
+    gtsam::Vector start_vel;
+    this->getCurrentPose(start_pose, start_vel);
+
+    // Get goal pose
+    gtsam::Vector end_conf(arm_dof_);
+    for (size_t i = 0; i < arm_dof_; i++)
+    {
+      end_conf[i] = msg->arm[i];
+    }
+    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
+    gpmp2::Pose2Vector end_pose(start_pose.pose(), end_conf); // Same starting base pose
+
+    // settings
+    // Determine how long the trajectory should be and how it should be split up
+    int est_traj_time = 10; // TODO - need to automate this calculation
+    int est_steps = round(est_traj_time/delta_t_) + 1;
+
+    createSettings((float) est_traj_time, est_steps);
+
+    // initial values
+    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose, delta_t_);
+    visualiseInitialBasePlan(init_values);
 
     this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
                                       sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
                                       sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm, start_pose, start_vel, end_pose, end_vel);
+                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, end_pose, end_vel);
 
     
     gtsam::Values res = this->manualOptimize(init_values);
     // gtsam::Values res = this->optimize(init_values);
-
 
     std::cout << "Optimized" << std::endl;
     
@@ -252,130 +408,20 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
       ros::Duration(0.2).sleep();
     }
     
-
     // Now visualise the base motion
     publishPlanMsg(res);
-    // visualiseBasePlan(res);
-
-    // clearBuffers();
-    // executePathFollow(res);
-    executeBaseTrajectory(res);
 
     // recordExecutedTrajectory();
     publishPlanMsg(res);
-    // Now we need to compare actual vs desired
 
-
-  // Create the factor graph problem 
-};
-
-void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg){
-
-    // Get goal pose
-    gtsam::Vector end_conf(arm_dof_);
-    for (size_t i = 0; i < arm_dof_; i++)
-    {
-      end_conf[i] = msg->arm[i];
-    }
-    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
-
-
-    // Get current base pose
-    tf::StampedTransform transform;
-    try{
-      listener.lookupTransform("/odom", "/base_link", ros::Time(0), transform);
-    }
-    catch (tf::TransformException ex){
-      ROS_ERROR("%s",ex.what());
-    }
-
-
-    // Set start pose
-    gtsam::Vector start_conf(5);
-    start_conf = joint_state_;
-
-    gtsam::Vector start_vel = gtsam::Vector::Zero(arm_dof_+3);
-    tf::Matrix3x3 goal_m(transform.getRotation());
-    double start_roll, start_pitch, start_yaw;
-    goal_m.getRPY(start_roll, start_pitch, start_yaw);
-    gtsam::Pose2 start_base_pose(transform.getOrigin().x(), transform.getOrigin().y(), start_yaw);
-    
-    gpmp2::Pose2Vector start_pose(start_base_pose, start_conf);
-    gpmp2::Pose2Vector end_pose(start_base_pose, end_conf); // Same starting base pose
-
-    // settings
-
-    gpmp2::Pose2MobileVetLinArmModel arm = GenerateHSRArm();
-
-    double pose_fix_sigma = 0.0001;
-    double vel_fix_sigma = 0.0001; 
-
-    // NOTE: The type here it bound to the dim... This needs changing for a different dof
-    gtsam::Matrix8 Qc = 1 * gtsam::Matrix::Identity(arm_dof_+3,arm_dof_+3);
-
-    float delta_t =  10.0/(total_time_step_-1);
-
-    gtsam::Vector joint_pos_limits_up(arm_dof_+3);
-    gtsam::Vector joint_pos_limits_down(arm_dof_+3);
-    gtsam::Vector pos_limit_thresh(arm_dof_+3);
-    
-    joint_pos_limits_down << -100, -100, -100,  0,     -2.617,   -1.919,   -1.919,   -1.919;
-    joint_pos_limits_up   << 100,   100,  100,  0.69,  0,        3.665,    1.221,    3.665;
-    pos_limit_thresh = 0.001 * gtsam::Vector::Ones(arm_dof_+3);
-
-    gpmp2::TrajOptimizerSetting setting(arm_dof_+3);
-    // setting.setGaussNewton();
-    setting.setLM();
-    setting.set_total_step(total_time_step_);
-    setting.set_total_time(10);
-    setting.set_epsilon(0.5);
-    setting.set_cost_sigma(0.2);
-    setting.set_obs_check_inter(1);
-    setting.set_conf_prior_model(pose_fix_sigma);
-    setting.set_vel_prior_model(vel_fix_sigma);
-    setting.set_Qc_model(Qc);
-    setting.setVerbosityError();
-    setting.set_flag_pos_limit(false);
-    setting.set_flag_vel_limit(false);
-    setting.set_joint_pos_limits_down(joint_pos_limits_up);
-    setting.set_joint_pos_limits_up(joint_pos_limits_down);
-    setting.set_pos_limit_thresh(pos_limit_thresh);
-    // setting.set_max_iter(1);
-
-    // initial values
-    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose, delta_t);
-
-    // HSR
-    gtsam::Values res = this->MarkTrajOptimize<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
-                                      sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
-                                      sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm, *sdf_handler_, start_pose, start_vel, end_pose, end_vel, init_values, setting);
-
-    executeArmPlan(res, delta_t);
+    executeArmPlan(res, delta_t_);
 };
 
 void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg){
 
-    // Get current base pose
-    tf::StampedTransform transform;
-    try{
-      listener.lookupTransform("/odom", "/base_link", ros::Time(0), transform);
-    }
-    catch (tf::TransformException ex){
-      ROS_ERROR("%s",ex.what());
-    }
-
-    double start_roll, start_pitch, start_yaw, end_roll, end_pitch, end_yaw;
-
-    // Set start pose
-    gtsam::Vector start_conf(5);
-    start_conf = joint_state_;
-
-    gtsam::Vector start_vel = gtsam::Vector::Zero(arm_dof_+3);
-    tf::Matrix3x3 goal_m(transform.getRotation());
-    goal_m.getRPY(start_roll, start_pitch, start_yaw);
-    gtsam::Pose2 start_base_pose(transform.getOrigin().x(), transform.getOrigin().y(), start_yaw);
-    gpmp2::Pose2Vector start_pose(start_base_pose, start_conf);
+    gpmp2::Pose2Vector start_pose;
+    gtsam::Vector start_vel;
+    this->getCurrentPose(start_pose, start_vel);
 
 
     // Get goal pose
@@ -393,75 +439,46 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
                     msg->base.pose.orientation.w
     );
     tf::Matrix3x3 m(q);
+    double end_roll, end_pitch, end_yaw;
     m.getRPY(end_roll, end_pitch, end_yaw);
     gpmp2::Pose2Vector end_pose(gtsam::Pose2(msg->base.pose.position.x, msg->base.pose.position.y, end_yaw), end_conf);
     
     // settings
-    gpmp2::Pose2MobileVetLinArmModel arm = GenerateHSRArm();
+    // Determine how long the trajectory should be and how it should be split up
+    float est_traj_dist = sqrt(std::pow( msg->base.pose.position.x - start_pose.pose().x(), 2) + std::pow(msg->base.pose.position.y - start_pose.pose().y(), 2));
+    int est_traj_time = ceil( est_traj_dist / 0.15);
+    // int est_steps = round(est_traj_time/0.25) + 1;
+    int est_steps = round(est_traj_time/delta_t_) + 1;
 
-    double pose_fix_sigma = 0.0001;
-    double vel_fix_sigma = 0.0001; 
-
-    // NOTE: The type here it bound to the dim... This needs changing for a different dof
-    gtsam::Matrix8 Qc = 1 * gtsam::Matrix::Identity(arm_dof_+3,arm_dof_+3);
-
-    float delta_t =  10.0/(total_time_step_-1);
-
-    gtsam::Vector joint_pos_limits_up(arm_dof_+3);
-    gtsam::Vector joint_pos_limits_down(arm_dof_+3);
-    gtsam::Vector pos_limit_thresh(arm_dof_+3);
-    
-    // joint_pos_limits_down << -100, -100, -100,  0,     -2.617,   -1.919,   -1.919,   -1.919;
-    // joint_pos_limits_up   << 100,   100,  100,  0.69,  0,        3.665,    1.221,    3.665;
-
-    // Note: these have been reversed because the joints have been set up in negative
-    joint_pos_limits_down << -100, -100, -100,  0,     0,   -3.665,   -1.221,   -3.665;
-    joint_pos_limits_up   << 100,   100,  100,  0.69,  2.617, 1.919,    1.919,    1.919;
-    
-    pos_limit_thresh = 0.001 * gtsam::Vector::Ones(arm_dof_+3);
-
-    gpmp2::TrajOptimizerSetting setting(arm_dof_+3);
-    // setting.setGaussNewton();
-    setting.setLM();
-    setting.set_total_step(total_time_step_);
-    setting.set_total_time(10);
-    // setting.set_epsilon(0.5);
-    setting.set_epsilon(0.2);
-    setting.set_cost_sigma(0.2);
-    setting.set_obs_check_inter(1);
-    setting.set_conf_prior_model(pose_fix_sigma);
-    setting.set_vel_prior_model(vel_fix_sigma);
-    setting.set_Qc_model(Qc);
-    setting.setVerbosityError();
-    setting.set_flag_pos_limit(false);
-    setting.set_flag_vel_limit(false);
-
-    setting.set_joint_pos_limits_down(joint_pos_limits_up);
-    setting.set_joint_pos_limits_up(joint_pos_limits_down);
-    setting.set_pos_limit_thresh(pos_limit_thresh);
-
-    // setting.set_max_iter(1);
+    createSettings((float) est_traj_time, est_steps);
 
     // initial values
-    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose, delta_t);
-
+    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose, delta_t_);
     visualiseInitialBasePlan(init_values);
 
-    // HSR
-    gtsam::Values res = this->MarkTrajOptimize<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
+    this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
                                       sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
                                       sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm, *sdf_handler_, start_pose, start_vel, end_pose, end_vel, init_values, setting);
-    // std::cout << "Finished planning!" << std::endl;
+                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, end_pose, end_vel);
 
+    
+    gtsam::Values res = this->manualOptimize(init_values);
+    // gtsam::Values res = this->optimize(init_values);
+
+
+    std::cout << "Optimized" << std::endl;
+    
+    for (size_t i = 0; i < trajectory_evolution_.size(); i++)
+    {
+      visualiseBasePlan(trajectory_evolution_[i]);
+      ros::Duration(0.2).sleep();
+    }
+    
     // Now visualise the base motion
     publishPlanMsg(res);
-    visualiseBasePlan(res);
-    executePathFollow(res);
-    executeFullPlan(res, delta_t);
-    // std::cout << "Visualising base plan" << std::endl;
-
-  // Create the factor graph problem 
+    
+    // executePathFollow(res);
+    executeFullPlan(res, delta_t_);
 };
 
 void sdf_mp_integration::PlanningServer::publishPlanMsg(const gtsam::Values& plan) const{
@@ -592,7 +609,7 @@ void sdf_mp_integration::PlanningServer::executePathFollow(const gtsam::Values& 
 
 };
 
-void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Values& plan) {
+void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Values& plan, const size_t current_ind, const double t_delay) {
     control_msgs::FollowJointTrajectoryGoal trajectory_goal;
     // trajectory_goal.trajectory.header.stamp = ros::Time::now();
     trajectory_goal.trajectory.header.frame_id = "odom";
@@ -601,9 +618,13 @@ void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Valu
     trajectory_goal.trajectory.joint_names.push_back("odom_y");      
     trajectory_goal.trajectory.joint_names.push_back("odom_t");      
 
-    trajectory_goal.trajectory.points.resize(total_time_step_-1);
+    int delay_inds = ceil(t_delay/delta_t_);
+
+    trajectory_goal.trajectory.points.resize(total_time_step_ - 1 - current_ind - delay_inds);
     // Don't include the first point which is current position
-    for (size_t i = 1; i < total_time_step_; i++){   
+
+    size_t ctr = 0;
+    for (size_t i = current_ind + delay_inds + 1; i < total_time_step_; i++){   
 
         gpmp2::Pose2Vector pose = plan.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', i));
         gtsam::Vector vel = plan.at<gtsam::Vector>(gtsam::Symbol('v', i));
@@ -613,10 +634,11 @@ void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Valu
         // pt.velocities = {vel[0], vel[1], vel[2]};
         // pt.accelerations;
         // pt.effort
-        pt.time_from_start = ros::Duration(i * delta_t_); 
+        pt.time_from_start = ros::Duration((ctr + 1 + delay_inds) * delta_t_); 
 
         // trajectory_goal.trajectory.points.append(pt);
-        trajectory_goal.trajectory.points[i-1] = pt;
+        trajectory_goal.trajectory.points[ctr] = pt;
+        ctr+=1;
     }
 
     base_traj_ac_.sendGoal(trajectory_goal);    
@@ -738,95 +760,6 @@ void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& pl
 
 };
 
-// Called once when the goal completes
-void sdf_mp_integration::PlanningServer::doneCb(const actionlib::SimpleClientGoalState& state,
-            const tmc_omni_path_follower::PathFollowerResultConstPtr& result)
-{
-  ROS_INFO("Finished in state [%s]", state.toString().c_str());
-  ros::shutdown();
-}
-
-// Called once when the goal becomes active
-void sdf_mp_integration::PlanningServer::activeCb()
-{
-  ROS_INFO("Goal just went active");
-}
-
-// Called every time feedback is received for the goal
-void sdf_mp_integration::PlanningServer::feedbackCb(const tmc_omni_path_follower::PathFollowerFeedbackConstPtr& feedback)
-{
-  ROS_INFO("Got progress of length %f", feedback->progress);
-}
-
-template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
-    class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
-gtsam::Values sdf_mp_integration::PlanningServer::MarkTrajOptimize(
-    const ROBOT& arm, const SDFHandler& sdf_handler,
-    const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
-    const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel,
-    const gtsam::Values& init_values, const gpmp2::TrajOptimizerSetting& setting) {
-
-  using namespace gtsam;
-
-  // GP interpolation setting
-  const double delta_t = setting.total_time / static_cast<double>(setting.total_step);
-  const double inter_dt = delta_t / static_cast<double>(setting.obs_check_inter + 1);
-
-  // build graph
-  NonlinearFactorGraph graph;
-  
-  for (size_t i = 0; i < setting.total_step; i++) {
-    Key pose_key = Symbol('x', i);
-    Key vel_key = Symbol('v', i);
-
-    // start and end
-    if (i == 0) {
-
-      graph.add(PriorFactor<typename ROBOT::Pose>(pose_key, start_conf, setting.conf_prior_model));
-      graph.add(PriorFactor<typename ROBOT::Velocity>(vel_key, start_vel, setting.vel_prior_model));
-
-    } else if (i == setting.total_step - 1) {
-      graph.add(PriorFactor<typename ROBOT::Pose>(pose_key, end_conf, setting.conf_prior_model));
-      graph.add(PriorFactor<typename ROBOT::Velocity>(vel_key, end_vel, setting.vel_prior_model));
-    }
-
-    if (setting.flag_pos_limit) {
-      // joint position limits
-      graph.add(LIMIT_FACTOR_POS(pose_key, setting.pos_limit_model, setting.joint_pos_limits_down, 
-          setting.joint_pos_limits_up, setting.pos_limit_thresh));
-    }
-    if (setting.flag_vel_limit) {
-      // velocity limits
-      graph.add(LIMIT_FACTOR_VEL(vel_key, setting.vel_limit_model, setting.vel_limits, 
-          setting.vel_limit_thresh));
-    }
-
-    // non-interpolated cost factor
-    graph.add(OBS_FACTOR(pose_key, arm, sdf_handler, setting.cost_sigma, setting.epsilon));
-
-    if (i > 0) {
-      Key last_pose_key = Symbol('x', i-1);
-      Key last_vel_key = Symbol('v', i-1);
-
-      // interpolated cost factor
-      if (setting.obs_check_inter > 0) {
-        for (size_t j = 1; j <= setting.obs_check_inter; j++) {
-          const double tau = inter_dt * static_cast<double>(j);
-          graph.add(OBS_FACTOR_GP(last_pose_key, last_vel_key, pose_key, vel_key, arm, sdf_handler,
-              setting.cost_sigma, setting.epsilon, setting.Qc_model, delta_t, tau));
-        }
-      }
-
-      // GP factor
-      graph.add(GP(last_pose_key, last_vel_key, pose_key, vel_key, delta_t, setting.Qc_model));
-    }
-  }
-  // graph.print();
-  gtsam::Values res = gpmp2::optimize(graph, init_values, setting);
-  // res.print();
-  return res;
-}
-
 template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
     class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
 void sdf_mp_integration::PlanningServer::constructGraph(
@@ -834,7 +767,7 @@ void sdf_mp_integration::PlanningServer::constructGraph(
     const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
     const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel) {
 
-  using namespace gtsam;
+  // using namespace gtsam;
 
   graph_ = gtsam::NonlinearFactorGraph();
 
@@ -843,18 +776,18 @@ void sdf_mp_integration::PlanningServer::constructGraph(
   const double inter_dt = delta_t / static_cast<double>(setting_.obs_check_inter + 1);
   
   for (size_t i = 0; i < setting_.total_step; i++) {
-    Key pose_key = Symbol('x', i);
-    Key vel_key = Symbol('v', i);
+    gtsam::Key pose_key = gtsam::Symbol('x', i);
+    gtsam::Key vel_key = gtsam::Symbol('v', i);
 
     // start and end
     if (i == 0) {
 
-      graph_.add(PriorFactor<typename ROBOT::Pose>(pose_key, start_conf, setting_.conf_prior_model));
-      graph_.add(PriorFactor<typename ROBOT::Velocity>(vel_key, start_vel, setting_.vel_prior_model));
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Pose>(pose_key, start_conf, setting_.conf_prior_model));
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Velocity>(vel_key, start_vel, setting_.vel_prior_model));
 
     } else if (i == setting_.total_step - 1) {
-      graph_.add(PriorFactor<typename ROBOT::Pose>(pose_key, end_conf, setting_.conf_prior_model));
-      graph_.add(PriorFactor<typename ROBOT::Velocity>(vel_key, end_vel, setting_.vel_prior_model));
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Pose>(pose_key, end_conf, setting_.conf_prior_model));
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Velocity>(vel_key, end_vel, setting_.vel_prior_model));
     }
 
     if (setting_.flag_pos_limit) {
@@ -872,8 +805,8 @@ void sdf_mp_integration::PlanningServer::constructGraph(
     graph_.add(OBS_FACTOR(pose_key, arm, *sdf_handler_, setting_.cost_sigma, setting_.epsilon));
 
     if (i > 0) {
-      Key last_pose_key = Symbol('x', i-1);
-      Key last_vel_key = Symbol('v', i-1);
+      gtsam::Key last_pose_key = gtsam::Symbol('x', i-1);
+      gtsam::Key last_vel_key = gtsam::Symbol('v', i-1);
 
       // interpolated cost factor
       if (setting_.obs_check_inter > 0) {
@@ -908,6 +841,121 @@ gtsam::Values sdf_mp_integration::PlanningServer::optimize(const gtsam::Values& 
 
   return res;
 };
+
+gtsam::Values sdf_mp_integration::PlanningServer::optimize(const gtsam::Values& init_values, double& final_err, bool iter_no_increase){
+
+  using namespace std;
+  using namespace gtsam;
+
+  std::shared_ptr<gtsam::NonlinearOptimizer> opt;
+  std::shared_ptr<gtsam::NonlinearOptimizerParams> params;
+
+  // init the params/opt and type specific settings
+  if (setting_.opt_type == gpmp2::TrajOptimizerSetting::Dogleg) {
+    params = std::shared_ptr<gtsam::NonlinearOptimizerParams>(new DoglegParams());
+    // trust region ranage, 0.2 rad or meter, no whitenning, not sure make sense or not 
+    dynamic_cast<DoglegParams*>(params.get())->setDeltaInitial(0.2);
+  
+  } else if (setting_.opt_type == gpmp2::TrajOptimizerSetting::LM) {
+    params = std::shared_ptr<gtsam::NonlinearOptimizerParams>(new LevenbergMarquardtParams());
+    dynamic_cast<LevenbergMarquardtParams*>(params.get())->setlambdaInitial(100.0);
+  
+  } else if (setting_.opt_type == gpmp2::TrajOptimizerSetting::GaussNewton) {
+    params = std::shared_ptr<gtsam::NonlinearOptimizerParams>(new GaussNewtonParams());
+  }
+
+  // common settings
+  params->setMaxIterations(setting_.max_iter);
+  params->setRelativeErrorTol(setting_.rel_thresh);
+  if (setting_.opt_verbosity >= gpmp2::TrajOptimizerSetting::Error)
+    params->setVerbosity("ERROR");
+
+  // optimizer
+  if (setting_.opt_type == gpmp2::TrajOptimizerSetting::Dogleg) {
+    opt = std::shared_ptr<gtsam::NonlinearOptimizer>(new DoglegOptimizer(
+      graph_, init_values, *(dynamic_cast<DoglegParams*>(params.get()))));
+  } else if (setting_.opt_type == gpmp2::TrajOptimizerSetting::LM) {
+    opt = std::shared_ptr<gtsam::NonlinearOptimizer>(new LevenbergMarquardtOptimizer(
+      graph_, init_values, *(dynamic_cast<LevenbergMarquardtParams*>(params.get()))));
+  } else if (setting_.opt_type == gpmp2::TrajOptimizerSetting::GaussNewton) {
+    opt = std::shared_ptr<gtsam::NonlinearOptimizer>(new GaussNewtonOptimizer(
+      graph_, init_values, *(dynamic_cast<GaussNewtonParams*>(params.get()))));
+  }
+
+  double currentError = opt->error();
+  
+  // check if we're already close enough
+  if (currentError <= params->errorTol) {
+    if (params->verbosity >= NonlinearOptimizerParams::ERROR){
+      cout << "Exiting, as error = " << currentError << " < " << params->errorTol << endl;
+    }
+    final_err = opt->error();
+    return opt->values();
+  }
+
+  // Maybe show output
+  if (params->verbosity >= NonlinearOptimizerParams::ERROR){
+    cout << "Initial error: " << currentError << endl;
+  }
+
+  // Return if we already have too many iterations
+  if (opt->iterations() >= params->maxIterations) {
+    if (params->verbosity >= NonlinearOptimizerParams::TERMINATION){
+      cout << "iterations: " << opt->iterations() << " > " << params->maxIterations << endl;
+    }
+    final_err = opt->error();
+    return opt->values();
+  }
+
+  Values last_values;
+
+  // Iterative loop
+  do {
+    // iteration
+    currentError = opt->error();
+    // copy last values in case error increase
+    if (iter_no_increase)
+      last_values = opt->values();
+    opt->iterate();
+    // Maybe show output
+    if (params->verbosity >= NonlinearOptimizerParams::ERROR){
+      cout << "newError: " << opt->error() << endl;
+    }
+    // Store the result
+  } while (opt->iterations() < params->maxIterations &&
+      !checkConvergence(params->relativeErrorTol, params->absoluteErrorTol, params->errorTol,
+          currentError, opt->error(), params->verbosity));
+
+  // Printing if verbose
+  if (params->verbosity >= NonlinearOptimizerParams::TERMINATION) {
+    cout << "iterations: " << opt->iterations() << " > " << params->maxIterations << endl;
+    if (opt->iterations() >= params->maxIterations){
+      cout << "Terminating because reached maximum iterations" << endl;
+    }
+  }
+
+  // check whether values increase
+  // if increase use last copied values
+  if (opt->error() > currentError) {
+    if (iter_no_increase) {
+      if (params->verbosity >= NonlinearOptimizerParams::ERROR){
+        cout << "Error increase, use last copied values" << endl;
+      }    
+      final_err = currentError;
+      return last_values;
+
+    } else {
+      final_err = opt->error();
+      return opt->values();
+    }
+  } else {
+    final_err = opt->error();
+    return opt->values();
+  }
+
+};
+
+
 
 gtsam::Values sdf_mp_integration::PlanningServer::manualOptimize(const gtsam::Values& init_values, bool iter_no_increase){
 
@@ -1015,3 +1063,26 @@ gtsam::Values sdf_mp_integration::PlanningServer::manualOptimize(const gtsam::Va
   }
 
 };
+
+
+
+
+// Called once when the goal completes
+void sdf_mp_integration::PlanningServer::doneCb(const actionlib::SimpleClientGoalState& state,
+            const tmc_omni_path_follower::PathFollowerResultConstPtr& result)
+{
+  ROS_INFO("Finished in state [%s]", state.toString().c_str());
+  ros::shutdown();
+}
+
+// Called once when the goal becomes active
+void sdf_mp_integration::PlanningServer::activeCb()
+{
+  ROS_INFO("Goal just went active");
+}
+
+// Called every time feedback is received for the goal
+void sdf_mp_integration::PlanningServer::feedbackCb(const tmc_omni_path_follower::PathFollowerFeedbackConstPtr& feedback)
+{
+  ROS_INFO("Got progress of length %f", feedback->progress);
+}

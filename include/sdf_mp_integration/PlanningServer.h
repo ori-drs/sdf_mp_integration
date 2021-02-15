@@ -64,6 +64,7 @@
 #include <control_msgs/JointTrajectoryControllerState.h>
 
 #include <chrono>
+#include <mutex>   
 
 namespace sdf_mp_integration {
 
@@ -71,7 +72,7 @@ class PlanningServer{
 
     private:
       ros::NodeHandle node_;
-      ros::Subscriber base_goal_sub_, arm_goal_sub_, full_goal_sub_, joint_sub_, actual_base_sub_;
+      ros::Subscriber base_goal_sub_, arm_goal_sub_, full_goal_sub_, joint_sub_, odom_sub_;
 
       std::string base_goal_sub_topic_, arm_goal_sub_topic_, full_goal_sub_topic_, actual_base_sub_topic_;
       double resolution_;
@@ -89,15 +90,20 @@ class PlanningServer{
       int arm_roll_joint_ind = 2;  
       int wrist_flex_joint_ind = 11;  
       int wrist_roll_joint_ind = 12;  
-      gtsam::Vector5 joint_state_;
+
+      int odom_x_ind = 0;
+      int odom_y_ind = 1;
+      int odom_t_ind = 2;
 
 
+      gtsam::Vector5 joint_state_, joint_v_state_;
+      gtsam::Vector3 odom_state_, odom_v_state_;
+
+      gpmp2::Pose2MobileVetLinArmModel arm_;
       std::vector<ros::Time> base_time_buffer_;
       std::vector<float> base_x_buffer_, base_y_buffer_, base_t_buffer_;
 
       int total_time_step_;
-
-      // int total_time_step_;
       float total_time_;
       float epsilon_;
       float cost_sigma_;
@@ -107,9 +113,19 @@ class PlanningServer{
       gpmp2::TrajOptimizerSetting setting_;
       gtsam::NonlinearFactorGraph graph_;
 
+      gpmp2::Pose2Vector goal_state_;
+      ros::WallTime begin_t_;
+      ros::Timer replan_timer_;
       std::vector<gtsam::Values> trajectory_evolution_;
+      int last_idx_updated_;
+      gtsam::Values traj_res_;
+
+      std::mutex replan_mtx;
+      // double traj_error_;
 
     public:
+
+      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       //  constructor
       PlanningServer() :  execute_ac_("path_follow_action", true), 
                           base_traj_ac_("/hsrb/omni_base_controller/follow_joint_trajectory", true), 
@@ -127,9 +143,18 @@ class PlanningServer{
       void recordActualBase(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg);
 
       void jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg);
+      void odomStateCallback(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg);
+      void getCurrentPose(gpmp2::Pose2Vector &current_pose, gtsam::Vector &current_vel);
 
       void createSettings();
       void createSettings(float total_time, int total_time_step);
+
+      //For replanning
+      void updateState(int idx);
+      bool isTaskComplete();
+      void replan(const ros::TimerEvent& /*event*/);
+      void replan();
+
 
 
       //
@@ -139,7 +164,8 @@ class PlanningServer{
       void visualiseBasePlan(const gtsam::Values& plan) const;
       void visualiseInitialBasePlan(const gtsam::Values& plan) const;
       void executePathFollow(const gtsam::Values& plan);
-      void executeBaseTrajectory(const gtsam::Values& plan);
+      void executeBaseTrajectory(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
+
       void executeArmPlan(const gtsam::Values& plan, const float delta_t);
       void executeFullPlan(const gtsam::Values& plan, const float delta_t);
       void publishPlanMsg(const gtsam::Values& plan) const;
@@ -150,19 +176,13 @@ class PlanningServer{
 
       template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
                 class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
-      gtsam::Values MarkTrajOptimize(const ROBOT& arm, const SDFHandler& sdf_handler,
-                                                    const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
-                                                    const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel,
-                                                    const gtsam::Values& init_values, const gpmp2::TrajOptimizerSetting& setting);
-
-      template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
-                class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
       void constructGraph(const ROBOT& arm,
                                     const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
                                     const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel);
 
       gtsam::Values optimize(const gtsam::Values& init_values);
       gtsam::Values manualOptimize(const gtsam::Values& init_values, bool iter_no_increase = true);
+      gtsam::Values optimize(const gtsam::Values& init_values, double& final_err, bool iter_no_increase = true);
 
       // void armGoalCallback(const messagetype::ConstPtr& msg);
       // void fullGoalCallback(const messagetype::ConstPtr& msg);

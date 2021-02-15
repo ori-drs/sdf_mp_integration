@@ -1,9 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(sdf_mp_integration)
 
-set(CMAKE_CXX_FLAGS "-std=c++17 ${CMAKE_CXX_FLAGS} -O3 -Wall ") # -Wextra -Werror
-set(CMAKE_BUILD_TYPE "RELEASE")
-
 find_package(catkin REQUIRED COMPONENTS
 roscpp
 rospy
