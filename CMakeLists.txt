@@ -11,14 +11,12 @@ control_msgs
 nav_msgs
 tf
 tmc_omni_path_follower
-dgpmp2
 message_generation # For message generation
 )
 
 # find_package(catkin COMPONENTS voxblox voxblox_ros voxblox_msgs voxblox_rviz_plugin REQUIRED)
 find_package(roscpp REQUIRED)
 # find_package(fiesta REQUIRED)
-find_package(dgpmp2 REQUIRED)
 find_package(gpu_voxels_ros REQUIRED)
 find_package(gpmp2 REQUIRED)
 find_package(Boost COMPONENTS timer REQUIRED) # Why this is needed, i have no idea
@@ -71,6 +69,8 @@ add_library(${PROJECT_NAME}_lib
   src/SDFHandler.cpp
   src/PlanningServer.cpp
   src/GraphMaintainer.cpp
+  src/SetHSRConf.cpp
+  src/GenerateArm.cpp
 )
 
 add_message_files(
@@ -79,6 +79,7 @@ add_message_files(
   GtsamValues.msg
   WholeBodyPose.msg
   ArmPose.msg
+  HeadDirection.msg
 )
 
 generate_messages(
@@ -93,7 +94,6 @@ catkin_package(
   message_runtime # for message generation
   # fiesta 
   # voxblox_ros voxblox voxblox_msgs voxblox_rviz_plugin 
-  dgpmp2
 )
 
 
@@ -125,6 +125,8 @@ add_executable(planning_server_node test_scripts/planning_server_node.cpp
 src/SDFHandler.cpp
 src/PlanningServer.cpp
 src/GraphMaintainer.cpp
+src/SetHSRConf.cpp
+src/GenerateArm.cpp
 
 )
 
@@ -172,7 +174,9 @@ ${catkin_LIBRARIES}
 ${roscpp_LIBRARIES} 
 )
 
-catkin_install_python(PROGRAMS scripts/plotting_node.py
+add_dependencies(arm_goal_test_node sdf_mp_integration_generate_messages_cpp)
+
+catkin_install_python(PROGRAMS scripts/plotting_node.py scripts/hsr_python_controller.py
                       DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 # Install directory
