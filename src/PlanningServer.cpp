@@ -302,7 +302,7 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     this->getCurrentPose(start_pose, start_vel);
 
     // Get goal pose
-    gtsam::Vector end_conf = dgpmp2::SetHSRConf("neutral");
+    gtsam::Vector end_conf = sdf_mp_integration::SetHSRConf("go");
     gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
     tf::Quaternion q(msg->pose.orientation.x,
                     msg->pose.orientation.y,
@@ -425,7 +425,7 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
 
 
     // Get goal pose
-    // gtsam::Vector end_conf = dgpmp2::SetHSRConf("neutral");
+    // gtsam::Vector end_conf = sdf_mp_integration::SetHSRConf("neutral");
     gtsam::Vector end_conf(arm_dof_);
     for (size_t i = 0; i < arm_dof_; i++)
     {

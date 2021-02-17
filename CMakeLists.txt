@@ -11,14 +11,12 @@ control_msgs
 nav_msgs
 tf
 tmc_omni_path_follower
-dgpmp2
 message_generation # For message generation
 )
 
 # find_package(catkin COMPONENTS voxblox voxblox_ros voxblox_msgs voxblox_rviz_plugin REQUIRED)
 find_package(roscpp REQUIRED)
 # find_package(fiesta REQUIRED)
-find_package(dgpmp2 REQUIRED)
 find_package(gpu_voxels_ros REQUIRED)
 find_package(gpmp2 REQUIRED)
 find_package(Boost COMPONENTS timer REQUIRED) # Why this is needed, i have no idea
@@ -71,6 +69,8 @@ add_library(${PROJECT_NAME}_lib
   src/SDFHandler.cpp
   src/PlanningServer.cpp
   src/GraphMaintainer.cpp
+  src/SetHSRConf.cpp
+  src/GenerateArm.cpp
 )
 
 add_message_files(
@@ -93,7 +93,6 @@ catkin_package(
   message_runtime # for message generation
   # fiesta 
   # voxblox_ros voxblox voxblox_msgs voxblox_rviz_plugin 
-  dgpmp2
 )
 
 
@@ -125,6 +124,8 @@ add_executable(planning_server_node test_scripts/planning_server_node.cpp
 src/SDFHandler.cpp
 src/PlanningServer.cpp
 src/GraphMaintainer.cpp
+src/SetHSRConf.cpp
+src/GenerateArm.cpp
 
 )
 

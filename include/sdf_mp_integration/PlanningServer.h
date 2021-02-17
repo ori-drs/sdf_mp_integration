@@ -16,8 +16,8 @@
 
 
 #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
-#include <dgpmp2/SetHSRConf.h>
-#include <dgpmp2/GenerateArm.h>
+#include <sdf_mp_integration/SetHSRConf.h>
+#include <sdf_mp_integration/GenerateArm.h>
 
 #include <gpmp2/geometry/Pose2Vector.h>
 
