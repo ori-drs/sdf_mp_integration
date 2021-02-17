@@ -54,6 +54,7 @@
 
 #include <sdf_mp_integration/ArmPose.h>
 #include <sdf_mp_integration/WholeBodyPose.h>
+#include <sdf_mp_integration/HeadDirection.h>
 
 
 
@@ -62,6 +63,8 @@
 #include <actionlib/client/simple_action_client.h>
 #include <control_msgs/FollowJointTrajectoryAction.h>
 #include <control_msgs/JointTrajectoryControllerState.h>
+
+#include <std_msgs/String.h>
 
 #include <chrono>
 #include <mutex>   
@@ -78,7 +81,7 @@ class PlanningServer{
       double resolution_;
       tf::TransformListener listener;
       sdf_mp_integration::SDFHandler<GPUVoxelsPtr>* sdf_handler_;
-      ros::Publisher path_pub_, init_path_pub_, plan_msg_pub;
+      ros::Publisher path_pub_, init_path_pub_, plan_msg_pub_, gaze_pub_, hsr_python_move_pub_;
       actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction> execute_ac_ ;
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> execute_arm_ac_ ;
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> base_traj_ac_ ;
@@ -95,6 +98,8 @@ class PlanningServer{
       int odom_y_ind = 1;
       int odom_t_ind = 2;
 
+      double look_ahead_time_;
+      bool base_task_;
 
       gtsam::Vector5 joint_state_, joint_v_state_;
       gtsam::Vector3 odom_state_, odom_v_state_;
@@ -158,6 +163,10 @@ class PlanningServer{
 
 
       //
+      void moveToGo();
+      void look(const float x, const float y, const float z, const std::string frame);
+      void look(const gtsam::Values& traj, const size_t current_ind, const double t_look_ahead, const std::string frame);
+
       void armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg);
       void baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
       void fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg);

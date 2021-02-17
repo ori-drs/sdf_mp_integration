@@ -21,6 +21,8 @@
   <arg     if="$(arg fast_physics)" name="world_suffix" value="_fast"/>
 
   <node name="transform_republish_node" pkg="sdf_mp_integration" type="transform_republish_node"/>
+  
+  <node name="hsr_python_controller_node" pkg="sdf_mp_integration" type="hsr_python_controller.py"/>
 
   <param name="transform_topic" type="string" value="transform_topic" />
   <param name="base_goal_sub_topic" type="string" value="/move_base_simple/goal" />

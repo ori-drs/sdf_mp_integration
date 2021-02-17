@@ -79,6 +79,7 @@ add_message_files(
   GtsamValues.msg
   WholeBodyPose.msg
   ArmPose.msg
+  HeadDirection.msg
 )
 
 generate_messages(
@@ -173,7 +174,9 @@ ${catkin_LIBRARIES}
 ${roscpp_LIBRARIES} 
 )
 
-catkin_install_python(PROGRAMS scripts/plotting_node.py
+add_dependencies(arm_goal_test_node sdf_mp_integration_generate_messages_cpp)
+
+catkin_install_python(PROGRAMS scripts/plotting_node.py scripts/hsr_python_controller.py
                       DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 # Install directory
