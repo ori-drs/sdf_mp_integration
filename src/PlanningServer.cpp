@@ -55,7 +55,7 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
 
     // Pause for mapping to take effect
     ros::Duration(2).sleep();
-    look(2.0,0.0,0.0, "base_footprint");
+    look(1.5,0.0,0.0, "base_footprint");
 
 };
 
@@ -303,8 +303,6 @@ void sdf_mp_integration::PlanningServer::replan(){
     // Check if it 
     gtsam::Values res = this->optimize(traj_res_, new_traj_error);
     traj_error = graph_.error(traj_res_);    
-    // new_traj_error = graph_.error(res);
-
     std::cout << "Current error: " << traj_error << "\t New error: " << new_traj_error << std::endl;
     
     err_improvement = (traj_error - new_traj_error)/traj_error;
@@ -314,7 +312,8 @@ void sdf_mp_integration::PlanningServer::replan(){
     if (err_improvement > 0.2){
       printf("Found a better trajectory. Improvement: %f", err_improvement);
       executeBaseTrajectory(res, idx, 0.5);
-      look(res, idx, look_ahead_time_, "odom");
+      // look(res, idx, look_ahead_time_, "odom");
+      look(1.0, 0.0, 0.0, "base_roll_link");
       visualiseBasePlan(res);
       traj_res_ = res;
     }
@@ -326,7 +325,7 @@ void sdf_mp_integration::PlanningServer::replan(){
   } else{
     replan_timer_.stop();
     std::cout << "Finished re-planning - goal reached!" << std::endl;
-    look(2.0, 0, 0.0, "base_footprint");
+    look(1.0, 0, 0.0, "base_footprint");
 
   }
 
@@ -391,7 +390,7 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
       // Start timer and execute
       begin_t_ = ros::WallTime::now();
       executeBaseTrajectory(traj_res_);
-      look(traj_res_, 0, look_ahead_time_, "odom");
+      look(1, 0, 0, "base_roll_link");
       visualiseBasePlan(traj_res_);
 
       std::cout << "Executing. Now starting replan timer for every: " << round(1.0/delta_t_) << "Hz" << std::endl;
