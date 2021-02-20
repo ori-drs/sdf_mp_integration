@@ -160,6 +160,8 @@ ${catkin_LIBRARIES}
 ${roscpp_LIBRARIES} 
 gpmp2
 gtsam
+${CUDA_LIBRARIES}
+
 )
 
 
