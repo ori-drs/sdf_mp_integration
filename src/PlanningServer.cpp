@@ -314,7 +314,8 @@ void sdf_mp_integration::PlanningServer::replan(){
     if (err_improvement > 0.2){
       printf("Found a better trajectory. Improvement: %f", err_improvement);
       executeBaseTrajectory(res, idx, 0.5);
-      look(res, idx, look_ahead_time_, "odom");
+      // look(res, idx, look_ahead_time_, "odom");
+      look(2.0, 0.0, 0.0, "base_roll_link");
       visualiseBasePlan(res);
       traj_res_ = res;
     }
@@ -326,16 +327,16 @@ void sdf_mp_integration::PlanningServer::replan(){
   } else{
     replan_timer_.stop();
     std::cout << "Finished re-planning - goal reached!" << std::endl;
-    look(2.0, 0, 0.0, "base_footprint");
+    look(2.0, 0, 0.0, "base_roll_link");
 
   }
 
 }
 
 void sdf_mp_integration::PlanningServer::replan(const ros::TimerEvent& /*event*/){
-  replan_mtx.lock();
+  // replan_mtx.lock();
   replan();
-  replan_mtx.unlock();
+  // replan_mtx.unlock();
 }
 
 void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
@@ -343,6 +344,7 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
 
     // Look at the target location
     look(msg->pose.position.x, msg->pose.position.y, 0.0, "odom");
+    ros::Duration(1).sleep();
 
     gpmp2::Pose2Vector start_pose;
     gtsam::Vector start_vel(8);
@@ -391,7 +393,9 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
       // Start timer and execute
       begin_t_ = ros::WallTime::now();
       executeBaseTrajectory(traj_res_);
-      look(traj_res_, 0, look_ahead_time_, "odom");
+      // look(traj_res_, 0, look_ahead_time_, "odom");
+      look(2.0, 0.0, 0.0, "base_roll_link");
+
       visualiseBasePlan(traj_res_);
 
       std::cout << "Executing. Now starting replan timer for every: " << round(1.0/delta_t_) << "Hz" << std::endl;

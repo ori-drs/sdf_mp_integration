@@ -82,12 +82,13 @@ add_message_files(
   HeadDirection.msg
 )
 
+catkin_python_setup()
+
 generate_messages(
   DEPENDENCIES
   std_msgs
   geometry_msgs
 )
-
 catkin_package(
   INCLUDE_DIRS include
   CATKIN_DEPENDS roscpp   
