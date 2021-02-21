@@ -117,19 +117,20 @@ gtsam::Values sdf_mp_integration::PlanningServer::getInitTrajectory(const gpmp2:
     return init_values;
 }
 
+// TODO - note the minus signs due to our DH model convention
 void sdf_mp_integration::PlanningServer::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
 {
     joint_state_[0] = msg->position[arm_lift_joint_ind];
-    joint_state_[1] = msg->position[arm_flex_joint_ind];
-    joint_state_[2] = msg->position[arm_roll_joint_ind];
-    joint_state_[3] = msg->position[wrist_flex_joint_ind];
-    joint_state_[4] = msg->position[wrist_roll_joint_ind];
+    joint_state_[1] = -msg->position[arm_flex_joint_ind];
+    joint_state_[2] = -msg->position[arm_roll_joint_ind];
+    joint_state_[3] = -msg->position[wrist_flex_joint_ind];
+    joint_state_[4] = -msg->position[wrist_roll_joint_ind];
 
     joint_v_state_[0] = msg->velocity[arm_lift_joint_ind];
-    joint_v_state_[1] = msg->velocity[arm_flex_joint_ind];
-    joint_v_state_[2] = msg->velocity[arm_roll_joint_ind];
-    joint_v_state_[3] = msg->velocity[wrist_flex_joint_ind];
-    joint_v_state_[4] = msg->velocity[wrist_roll_joint_ind];
+    joint_v_state_[1] = -msg->velocity[arm_flex_joint_ind];
+    joint_v_state_[2] = -msg->velocity[arm_roll_joint_ind];
+    joint_v_state_[3] = -msg->velocity[wrist_flex_joint_ind];
+    joint_v_state_[4] = -msg->velocity[wrist_roll_joint_ind];
 };
 
 void sdf_mp_integration::PlanningServer::odomStateCallback(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg)
@@ -386,6 +387,7 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
       last_idx_updated_ = 0;
 
       traj_res_ = this->optimize(init_values);
+      publishPlanMsg(traj_res_);
 
       // Start timer and execute
       begin_t_ = ros::WallTime::now();
@@ -453,6 +455,7 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
 
       std::cout << "Optimising..." << std::endl;
       traj_res_ = this->optimize(init_values);
+      publishPlanMsg(traj_res_);
 
       // Start timer and execute
       begin_t_ = ros::WallTime::now();
@@ -522,6 +525,7 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
 
       std::cout << "Optimising..." << std::endl;
       traj_res_ = this->optimize(init_values);
+      publishPlanMsg(traj_res_);
 
       // Start timer and execute
       begin_t_ = ros::WallTime::now();
