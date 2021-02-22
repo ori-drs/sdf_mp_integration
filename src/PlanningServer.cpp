@@ -218,7 +218,7 @@ void sdf_mp_integration::PlanningServer::createSettings(float total_time, int to
     total_time_ = total_time;
     // node_.param<float>("epsilon", epsilon_, 0.5);
     // node_.param<float>("cost_sigma", cost_sigma_, 0.2);
-    node_.param<float>("epsilon", epsilon_, 0.1);
+    node_.param<float>("epsilon", epsilon_, 0.5);
     node_.param<float>("cost_sigma", cost_sigma_, 0.05);
     node_.param<int>("obs_check_inter", obs_check_inter_, 10);
     node_.param<bool>("flag_pos_limit", flag_pos_limit_, false);
