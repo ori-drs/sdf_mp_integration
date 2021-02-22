@@ -318,9 +318,13 @@ bool sdf_mp_integration::PlanningServer::isTaskComplete(){
 
 
   if(base_task_){
-    return (abs(odom_state_[0] - goal_state_.pose().x()) <= 0.05 &&
-    abs(odom_state_[1] - goal_state_.pose().y()) <= 0.05 &&
-    abs(odom_state_[2] - goal_state_.pose().theta()) <= 0.02 // about 2.5 degrees
+    // std::cout << "xerr: " << abs(odom_state_[0] - goal_state_.pose().x())
+    //           << "yerr: " <<  abs(odom_state_[1] - goal_state_.pose().y())
+    //           << "terr: " <<  abs(odom_state_[2] - goal_state_.pose().theta()) << std::endl;
+
+    return (abs(odom_state_[0] - goal_state_.pose().x()) <= 0.08 &&
+    abs(odom_state_[1] - goal_state_.pose().y()) <= 0.08 &&
+    abs(odom_state_[2] - goal_state_.pose().theta()) <= 0.05 // about 6 degrees
     );
   }
   else{
