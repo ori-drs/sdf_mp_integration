@@ -111,7 +111,7 @@ class EnvManager:
         try:
             move_object_service = rospy.ServiceProxy(self.move_object_service, SetModelState)
             resp = move_object_service(state_msg)
-            print(resp)
+            # print(resp)
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
 
