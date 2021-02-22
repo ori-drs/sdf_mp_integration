@@ -157,6 +157,13 @@ void sdf_mp_integration::PlanningServer::reinitTrajectoryRemainder(gtsam::Values
 
 }
 
+void sdf_mp_integration::PlanningServer::reinitTrajectory(gtsam::Values &traj){
+  
+  gpmp2::Pose2Vector start_pose = traj.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', 0));
+  traj = getInitTrajectory(start_pose, goal_state_);
+
+}
+
 // TODO - note the minus signs due to our DH model convention
 void sdf_mp_integration::PlanningServer::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
 {

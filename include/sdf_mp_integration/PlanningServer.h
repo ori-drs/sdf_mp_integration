@@ -133,7 +133,7 @@ class PlanningServer{
       tf::TransformBroadcaster br_;
       float last_yaw_ = 0;
       bool moving_ = false;
-
+      double last_traj_error;
     public:
 
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -149,6 +149,7 @@ class PlanningServer{
 
       gtsam::Values getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose);
       void reinitTrajectoryRemainder(gtsam::Values &traj_before, const size_t current_ind);
+      void reinitTrajectory(gtsam::Values &traj);
 
       void clearBuffers();
       void recordExecutedTrajectory();
