@@ -13,6 +13,7 @@
 #include "tf/transform_datatypes.h"
 #include <tf/tf.h>
 #include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
 
 
 #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
@@ -129,6 +130,9 @@ class PlanningServer{
       std::mutex replan_mtx;
       // double traj_error_;
       bool replanning_ = true;
+      tf::TransformBroadcaster br_;
+      float last_yaw_ = 0;
+      bool moving_ = false;
 
     public:
 
@@ -143,7 +147,8 @@ class PlanningServer{
       ~PlanningServer() {}
 
 
-      gtsam::Values getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose, const float delta_t);
+      gtsam::Values getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose);
+      void reinitTrajectoryRemainder(gtsam::Values &traj_before, const size_t current_ind);
 
       void clearBuffers();
       void recordExecutedTrajectory();
