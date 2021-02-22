@@ -328,15 +328,15 @@ bool sdf_mp_integration::PlanningServer::isTaskComplete(){
     );
   }
   else{
-    return (abs(odom_state_[0] - goal_state_.pose().x()) <= 0.05 &&
-    abs(odom_state_[1] - goal_state_.pose().y()) <= 0.05 &&
-    abs(odom_state_[2] - goal_state_.pose().theta()) <= 0.02 && // about 2.5 degrees
+    return (abs(odom_state_[0] - goal_state_.pose().x()) <= 0.08 &&
+    abs(odom_state_[1] - goal_state_.pose().y()) <= 0.08 &&
+    abs(odom_state_[2] - goal_state_.pose().theta()) <= 0.05 && // about 2.5 degrees
 
-    abs(joint_state_[0] - goal_state_.configuration()[0]) <= 0.02 &&
-    abs(joint_state_[1] - goal_state_.configuration()[0]) <= 0.02 &&
-    abs(joint_state_[2] - goal_state_.configuration()[0]) <= 0.02 &&
-    abs(joint_state_[3] - goal_state_.configuration()[0]) <= 0.02 &&
-    abs(joint_state_[4] - goal_state_.configuration()[0]) <= 0.02);
+    abs(joint_state_[0] - goal_state_.configuration()[0]) <= 0.05 &&
+    abs(joint_state_[1] - goal_state_.configuration()[0]) <= 0.05 &&
+    abs(joint_state_[2] - goal_state_.configuration()[0]) <= 0.05 &&
+    abs(joint_state_[3] - goal_state_.configuration()[0]) <= 0.05 &&
+    abs(joint_state_[4] - goal_state_.configuration()[0]) <= 0.05);
   }
 
 
