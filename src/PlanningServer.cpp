@@ -33,7 +33,7 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
     plan_msg_pub_ = node_.advertise<sdf_mp_integration::GtsamValues>("gpmp2_results", 1);
     gaze_pub_ = node_.advertise<sdf_mp_integration::HeadDirection>("hsr_gaze_update", 1);
     hsr_python_move_pub_ = node_.advertise<std_msgs::String>("hsr_move_to_go", 1);
-        
+
     arm_ = GenerateHSRArm();
 
     // execute_ac_ = actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction>("path_follow_action", true);
@@ -46,6 +46,8 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
     ROS_INFO("execute_arm_ac_ ready.");
 
     moveToGo();
+    look(1.5,0.0,0.0, "base_footprint");
+    ros::Duration(1).sleep();
 
     // // Start the mapping
     GPUVoxelsPtr gpu_voxels_ptr; 
@@ -55,7 +57,6 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
 
     // Pause for mapping to take effect
     ros::Duration(2).sleep();
-    look(2.0,0.0,0.0, "base_footprint");
 
 };
 
@@ -84,15 +85,15 @@ void sdf_mp_integration::PlanningServer::look(const gtsam::Values& traj, const s
     look(pose.pose().x(), pose.pose().y(), 0, frame);
 }
 
-gtsam::Values sdf_mp_integration::PlanningServer::getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose, const float delta_t){
+gtsam::Values sdf_mp_integration::PlanningServer::getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose){
 
     gtsam::Vector avg_vel = gtsam::Vector::Zero(arm_dof_+3);
-    avg_vel[0] = (end_pose.pose().x()-start_pose.pose().x()) / (total_time_step_ * delta_t);
-    avg_vel[1] = (end_pose.pose().y()-start_pose.pose().y()) / (total_time_step_ * delta_t);
-    avg_vel[2] = (end_pose.pose().theta()-start_pose.pose().theta()) / (total_time_step_ * delta_t);
+    avg_vel[0] = (end_pose.pose().x()-start_pose.pose().x()) / (total_time_step_ * delta_t_);
+    avg_vel[1] = (end_pose.pose().y()-start_pose.pose().y()) / (total_time_step_ * delta_t_);
+    avg_vel[2] = (end_pose.pose().theta()-start_pose.pose().theta()) / (total_time_step_ * delta_t_);
     for (size_t i = 0; i < arm_dof_; i++)
     {
-      avg_vel[i+3] = (end_pose.configuration()[i] - start_pose.configuration()[i]) / (total_time_step_ * delta_t);
+      avg_vel[i+3] = (end_pose.configuration()[i] - start_pose.configuration()[i]) / (total_time_step_ * delta_t_);
     }
 
     gtsam::Values init_values;
@@ -117,19 +118,59 @@ gtsam::Values sdf_mp_integration::PlanningServer::getInitTrajectory(const gpmp2:
     return init_values;
 }
 
+void sdf_mp_integration::PlanningServer::reinitTrajectoryRemainder(gtsam::Values &traj_before, const size_t current_ind){
+
+    gtsam::Symbol curr_key_pos = gtsam::Symbol('x', current_ind);
+    gtsam::Symbol end_key_pos = gtsam::Symbol('x', total_time_step_ - 1);
+
+    gpmp2::Pose2Vector curr_pose = traj_before.at<gpmp2::Pose2Vector>(curr_key_pos);
+
+    gtsam::Vector avg_vel = gtsam::Vector::Zero(arm_dof_+3);
+    float t_left = (total_time_step_ - current_ind) * delta_t_;
+    
+    avg_vel[0] = (goal_state_.pose().x() - curr_pose.pose().x()) / t_left;
+    avg_vel[1] = (goal_state_.pose().y() - curr_pose.pose().y()) / t_left;
+    avg_vel[2] = (goal_state_.pose().theta() - curr_pose.pose().theta()) / t_left;
+    
+    for (size_t i = 0; i < arm_dof_; i++)
+    {
+      avg_vel[i+3] = (goal_state_.configuration()[i] - curr_pose.configuration()[i]) / t_left;
+    }
+
+    for (size_t i = current_ind; i < total_time_step_; i++)
+    {
+        gtsam::Symbol key_pos = gtsam::Symbol('x', i);
+        gtsam::Symbol key_vel = gtsam::Symbol('v', i);
+        
+        // initialize as straight line in conf space
+        gtsam::Vector conf = curr_pose.configuration() * (total_time_step_-i)/total_time_step_ + goal_state_.configuration() * i/total_time_step_;
+        
+        gtsam::Pose2 pose(curr_pose.pose().x() * (total_time_step_-i)/total_time_step_ + goal_state_.pose().x() * i/total_time_step_, 
+                          curr_pose.pose().y() * (total_time_step_-i)/total_time_step_ + goal_state_.pose().y() * i/total_time_step_, 
+                          curr_pose.pose().theta() * (total_time_step_-i)/total_time_step_ + goal_state_.pose().theta() * i/total_time_step_
+        );
+
+        // gtsam::insertPose2VectorInValues(key_pos, gpmp2::Pose2Vector(pose, conf), init_values);
+        traj_before.update(key_pos, gpmp2::Pose2Vector(pose, conf));
+        traj_before.update(key_vel, avg_vel);
+    }
+
+}
+
+// TODO - note the minus signs due to our DH model convention
 void sdf_mp_integration::PlanningServer::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
 {
     joint_state_[0] = msg->position[arm_lift_joint_ind];
-    joint_state_[1] = msg->position[arm_flex_joint_ind];
-    joint_state_[2] = msg->position[arm_roll_joint_ind];
-    joint_state_[3] = msg->position[wrist_flex_joint_ind];
-    joint_state_[4] = msg->position[wrist_roll_joint_ind];
+    joint_state_[1] = -msg->position[arm_flex_joint_ind];
+    joint_state_[2] = -msg->position[arm_roll_joint_ind];
+    joint_state_[3] = -msg->position[wrist_flex_joint_ind];
+    joint_state_[4] = -msg->position[wrist_roll_joint_ind];
 
     joint_v_state_[0] = msg->velocity[arm_lift_joint_ind];
-    joint_v_state_[1] = msg->velocity[arm_flex_joint_ind];
-    joint_v_state_[2] = msg->velocity[arm_roll_joint_ind];
-    joint_v_state_[3] = msg->velocity[wrist_flex_joint_ind];
-    joint_v_state_[4] = msg->velocity[wrist_roll_joint_ind];
+    joint_v_state_[1] = -msg->velocity[arm_flex_joint_ind];
+    joint_v_state_[2] = -msg->velocity[arm_roll_joint_ind];
+    joint_v_state_[3] = -msg->velocity[wrist_flex_joint_ind];
+    joint_v_state_[4] = -msg->velocity[wrist_roll_joint_ind];
 };
 
 void sdf_mp_integration::PlanningServer::odomStateCallback(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg)
@@ -141,6 +182,28 @@ void sdf_mp_integration::PlanningServer::odomStateCallback(const control_msgs::J
     odom_v_state_[0] = msg->actual.velocities[odom_x_ind];
     odom_v_state_[1] = msg->actual.velocities[odom_y_ind];
     odom_v_state_[2] = msg->actual.velocities[odom_t_ind];
+
+    tf::Transform transform;
+    tf::Quaternion q;
+    
+    if( abs(odom_v_state_[0]) >= 0.05 || abs(odom_v_state_[1]) >=0.05 ){
+      // last_yaw_ = 0.6*last_yaw_ + 0.4*atan2(std::ceil(odom_v_state_[1] * 10.0), std::ceil(odom_v_state_[0] * 10.0));
+      last_yaw_ = atan2(std::ceil(odom_v_state_[1] * 10.0), std::ceil(odom_v_state_[0] * 10.0));
+      std::cout << std::setprecision(2);
+      // std::cout << "Proposed yaw update: " << atan2(std::ceil(odom_v_state_[1] * 10.0), std::ceil(odom_v_state_[0] * 10.0)) * 180.0 / 3.14 << std::endl;
+      moving_ = true;
+    }
+    else{
+      moving_ = false;
+    }
+
+    // std::cout << "Yaw: " << last_yaw_ << std::endl;
+    q.setRPY(0,0,last_yaw_);
+    q.normalize();
+    transform.setOrigin( tf::Vector3(odom_state_[0], odom_state_[1], 0) );
+    transform.setRotation(q);
+    br_.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "odom", "travel"));
+
 };
 
 void sdf_mp_integration::PlanningServer::createSettings(float total_time, int total_time_step){
@@ -275,8 +338,11 @@ void sdf_mp_integration::PlanningServer::replan(){
   if (!isTaskComplete())
   {
     std::cout << "Task in progress. Replanning..." << std::endl;
+    // if(moving_){
+    //   look(2.0, 0.0, 0.0, "travel");
+    // }
 
-    double traj_error, new_traj_error, err_improvement;
+    double traj_error, new_traj_error, reinit_traj_error, old_err_improvement, reinit_err_improvement;
     // Calculate which index variable node we're at
     ros::WallTime current_t = ros::WallTime::now();
     ros::WallDuration dur = current_t - begin_t_;
@@ -292,32 +358,57 @@ void sdf_mp_integration::PlanningServer::replan(){
 
     std::cout << "idx: " << idx << std::endl;
 
+
     if (( abs(float_idx - (double) idx) < 0.1) && (idx > last_idx_updated_))
     {
       // Update confs
       std::cout << "Adding latest state..." << std::endl;
+      sdf_mp_integration::Timer updateStateTimer("update_state");
       updateState(idx);
+      updateStateTimer.Stop();
       last_idx_updated_ = idx;
     }
 
-    // Check if it 
+    // Check if it
+
+    sdf_mp_integration::Timer reinitAndOptimiseTimer("reinit_and_optimise");
+    gtsam::Values traj_res_copy =  traj_res_;
+    this->reinitTrajectoryRemainder(traj_res_copy, idx);
+    gtsam::Values reinit_res = this->optimize(traj_res_copy, reinit_traj_error);
+    reinitAndOptimiseTimer.Stop();
+    
+    sdf_mp_integration::Timer optimisationTimer("optimisation");
     gtsam::Values res = this->optimize(traj_res_, new_traj_error);
     traj_error = graph_.error(traj_res_);    
-    // new_traj_error = graph_.error(res);
+    optimisationTimer.Stop();
 
     std::cout << "Current error: " << traj_error << "\t New error: " << new_traj_error << std::endl;
     
-    err_improvement = (traj_error - new_traj_error)/traj_error;
+    old_err_improvement = (traj_error - new_traj_error)/traj_error;
+    reinit_err_improvement = (traj_error - reinit_traj_error)/traj_error;
 
     // If cost is reduced by more than 20%, update
     
-    if (err_improvement > 0.2){
-      printf("Found a better trajectory. Improvement: %f", err_improvement);
+    if (old_err_improvement > 0.2 && old_err_improvement > reinit_err_improvement){
+      printf("Found a better trajectory. Improvement: %f", old_err_improvement);
       executeBaseTrajectory(res, idx, 0.5);
-      look(res, idx, look_ahead_time_, "odom");
-      visualiseBasePlan(res);
+      // look(res, idx, look_ahead_time_, "odom");
+      if(base_task_){
+        // look(1.0, 0.0, 0.0, "travel");
+        visualiseBasePlan(res);
+      }
       traj_res_ = res;
     }
+    else if(reinit_err_improvement > 0.2 && reinit_err_improvement > old_err_improvement){
+      printf("Found a better trajectory. Improvement: %f", reinit_traj_error);
+      executeBaseTrajectory(reinit_res, idx, 0.5);
+      // look(res, idx, look_ahead_time_, "odom");
+      if(base_task_){
+        // look(1.0, 0.0, 0.0, "travel");
+        visualiseBasePlan(reinit_res);
+      }
+      traj_res_ = reinit_res;
+    } 
     else{
       return;
     }
@@ -326,7 +417,7 @@ void sdf_mp_integration::PlanningServer::replan(){
   } else{
     replan_timer_.stop();
     std::cout << "Finished re-planning - goal reached!" << std::endl;
-    look(2.0, 0, 0.0, "base_footprint");
+    look(1.0, 0, 0.0, "base_footprint");
 
   }
 
@@ -334,7 +425,15 @@ void sdf_mp_integration::PlanningServer::replan(){
 
 void sdf_mp_integration::PlanningServer::replan(const ros::TimerEvent& /*event*/){
   replan_mtx.lock();
+  sdf_mp_integration::Timer replanTimer("replan");
+
+  // auto start = chrono::high_resolution_clock::now(); 
   replan();
+  // auto stop = chrono::high_resolution_clock::now(); 
+  // auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start); 
+  // std::cout << "Replan time: " << duration.count() << std::endl; 
+  replanTimer.Stop();
+  sdf_mp_integration::Timing::Print(std::cout);
   replan_mtx.unlock();
 }
 
@@ -343,6 +442,7 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
 
     // Look at the target location
     look(msg->pose.position.x, msg->pose.position.y, 0.0, "odom");
+    ros::Duration(2).sleep();
 
     gpmp2::Pose2Vector start_pose;
     gtsam::Vector start_vel(8);
@@ -370,7 +470,7 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     createSettings((float) est_traj_time, est_steps);
 
     // initial values
-    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose, delta_t_);
+    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose);
     visualiseInitialBasePlan(init_values);
 
     constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
@@ -379,22 +479,22 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
                                       gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, end_pose, end_vel);
 
     
-
-    bool replanning = true;
-
-    if (replanning)
+    if (replanning_)
     {
       last_idx_updated_ = 0;
 
       traj_res_ = this->optimize(init_values);
+      publishPlanMsg(traj_res_);
 
       // Start timer and execute
       begin_t_ = ros::WallTime::now();
       executeBaseTrajectory(traj_res_);
-      look(traj_res_, 0, look_ahead_time_, "odom");
+      // look(traj_res_, 0, look_ahead_time_, "odom");
+      // look(2.0, 0.0, 0.0, "travel");
+
       visualiseBasePlan(traj_res_);
 
-      std::cout << "Executing. Now starting replan timer for every: " << round(1.0/delta_t_) << "Hz" << std::endl;
+      std::cout << "Executing. Now starting replan timer for every: " << round(1.0/0.2) << "Hz" << std::endl;
       replan_timer_ = node_.createTimer(ros::Duration( round(1.0/delta_t_)), &sdf_mp_integration::PlanningServer::replan, this);
     }
     else{
@@ -418,7 +518,7 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
     base_task_ = false;
 
     gpmp2::Pose2Vector start_pose;
-    gtsam::Vector start_vel;
+    gtsam::Vector start_vel(8);
     this->getCurrentPose(start_pose, start_vel);
 
     // Get goal pose
@@ -438,7 +538,7 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
     createSettings((float) est_traj_time, est_steps);
 
     // initial values
-    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose, delta_t_);
+    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose);
     visualiseInitialBasePlan(init_values);
 
     this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
@@ -446,38 +546,42 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
                                       sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
                                       gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, end_pose, end_vel);
 
-    
-    gtsam::Values res = this->manualOptimize(init_values);
-    // gtsam::Values res = this->optimize(init_values);
-
-    std::cout << "Optimized" << std::endl;
-    
-    for (size_t i = 0; i < trajectory_evolution_.size(); i++)
+    if (replanning_)
     {
-      visualiseBasePlan(trajectory_evolution_[i]);
-      ros::Duration(0.2).sleep();
+      last_idx_updated_ = 0;
+
+      std::cout << "Optimising..." << std::endl;
+      traj_res_ = this->optimize(init_values);
+      publishPlanMsg(traj_res_);
+
+      // Start timer and execute
+      begin_t_ = ros::WallTime::now();
+      std::cout << "Executing..." << std::endl;
+      executeArmPlan(traj_res_);
+      std::cout << "Executing. Now starting replan timer for every: " << round(1.0/delta_t_) << "Hz" << std::endl;
+      replan_timer_ = node_.createTimer(ros::Duration( round(1.0/delta_t_)), &sdf_mp_integration::PlanningServer::replan, this);
     }
-    
-    // Now visualise the base motion
-    publishPlanMsg(res);
-
-    // recordExecutedTrajectory();
-    publishPlanMsg(res);
-
-    executeArmPlan(res, delta_t_);
+    else{
+      
+      traj_res_ = this->optimize(init_values);
+      executeArmPlan(traj_res_);
+      publishPlanMsg(traj_res_);
+    }
 };
 
 void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg){
 
     base_task_ = false;
 
+    // Look at the target location
+    look(msg->base.pose.position.x, msg->base.pose.position.y, 0.0, "odom");
+
     gpmp2::Pose2Vector start_pose;
-    gtsam::Vector start_vel;
+    gtsam::Vector start_vel(8);
     this->getCurrentPose(start_pose, start_vel);
 
 
     // Get goal pose
-    // gtsam::Vector end_conf = sdf_mp_integration::SetHSRConf("neutral");
     gtsam::Vector end_conf(arm_dof_);
     for (size_t i = 0; i < arm_dof_; i++)
     {
@@ -488,8 +592,7 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
     tf::Quaternion q(msg->base.pose.orientation.x,
                     msg->base.pose.orientation.y,
                     msg->base.pose.orientation.z,
-                    msg->base.pose.orientation.w
-    );
+                    msg->base.pose.orientation.w);
     tf::Matrix3x3 m(q);
     double end_roll, end_pitch, end_yaw;
     m.getRPY(end_roll, end_pitch, end_yaw);
@@ -499,13 +602,13 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
     // Determine how long the trajectory should be and how it should be split up
     float est_traj_dist = sqrt(std::pow( msg->base.pose.position.x - start_pose.pose().x(), 2) + std::pow(msg->base.pose.position.y - start_pose.pose().y(), 2));
     int est_traj_time = ceil( est_traj_dist / 0.15);
-    // int est_steps = round(est_traj_time/0.25) + 1;
     int est_steps = round(est_traj_time/delta_t_) + 1;
 
     createSettings((float) est_traj_time, est_steps);
 
     // initial values
-    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose, delta_t_);
+    std::cout << "Settings created" << std::endl;
+    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose);
     visualiseInitialBasePlan(init_values);
 
     this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
@@ -513,24 +616,54 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
                                       sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
                                       gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, end_pose, end_vel);
 
-    
-    gtsam::Values res = this->manualOptimize(init_values);
-    // gtsam::Values res = this->optimize(init_values);
-
-
-    std::cout << "Optimized" << std::endl;
-    
-    for (size_t i = 0; i < trajectory_evolution_.size(); i++)
+    if (replanning_)
     {
-      visualiseBasePlan(trajectory_evolution_[i]);
-      ros::Duration(0.2).sleep();
+      last_idx_updated_ = 0;
+
+      std::cout << "Optimising..." << std::endl;
+      traj_res_ = this->optimize(init_values);
+      publishPlanMsg(traj_res_);
+
+      // Start timer and execute
+      begin_t_ = ros::WallTime::now();
+      std::cout << "Executing..." << std::endl;
+      executeFullPlan(traj_res_);
+      look(1, 0, 0, "travel");
+      visualiseBasePlan(traj_res_);
+
+      std::cout << "Executing. Now starting replan timer for every: " << round(1.0/delta_t_) << "Hz" << std::endl;
+      replan_timer_ = node_.createTimer(ros::Duration( round(1.0/delta_t_)), &sdf_mp_integration::PlanningServer::replan, this);
     }
+    else{
+      
+      traj_res_ = this->optimize(init_values);
+      executeFullPlan(traj_res_);
+
+      for (size_t i = 0; i < trajectory_evolution_.size(); i++){
+        visualiseBasePlan(trajectory_evolution_[i]);
+        ros::Duration(0.2).sleep();
+      }
+
+      publishPlanMsg(traj_res_);
+    }
+        
+    // gtsam::Values res = this->manualOptimize(init_values);
+    // // gtsam::Values res = this->optimize(init_values);
+
+
+    // std::cout << "Optimized" << std::endl;
     
-    // Now visualise the base motion
-    publishPlanMsg(res);
+    // for (size_t i = 0; i < trajectory_evolution_.size(); i++)
+    // {
+    //   visualiseBasePlan(trajectory_evolution_[i]);
+    //   ros::Duration(0.2).sleep();
+    // }
     
-    // executePathFollow(res);
-    executeFullPlan(res, delta_t_);
+    // // Now visualise the base motion
+    // publishPlanMsg(res);
+    
+    // // executePathFollow(res);
+    // executeFullPlan(res, delta_t_);
 };
 
 void sdf_mp_integration::PlanningServer::publishPlanMsg(const gtsam::Values& plan) const{
@@ -697,7 +830,7 @@ void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Valu
 
 };
 
-void sdf_mp_integration::PlanningServer::executeArmPlan(const gtsam::Values& plan, const float delta_t) {
+void sdf_mp_integration::PlanningServer::executeArmPlan(const gtsam::Values& plan, const size_t current_ind, const double t_delay) {
     control_msgs::FollowJointTrajectoryGoal arm_goal;
 
     arm_goal.trajectory.joint_names.push_back("arm_lift_joint");      
@@ -706,36 +839,41 @@ void sdf_mp_integration::PlanningServer::executeArmPlan(const gtsam::Values& pla
     arm_goal.trajectory.joint_names.push_back("wrist_flex_joint");      
     arm_goal.trajectory.joint_names.push_back("wrist_roll_joint");      
 
-    for (size_t i = 0; i < total_time_step_; i++)
+    int delay_inds = ceil(t_delay/delta_t_);
+
+    arm_goal.trajectory.points.resize(total_time_step_ - 1 - current_ind - delay_inds);
+
+    size_t ctr = 0;
+
+    for (size_t i = current_ind + delay_inds + 1; i < total_time_step_; i++)
     {
       trajectory_msgs::JointTrajectoryPoint pt;
+      pt.time_from_start = ros::Duration((ctr + 1 + delay_inds) * delta_t_); 
 
       gpmp2::Pose2Vector pose = plan.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', i));
-      gtsam::Vector v = plan.at<gtsam::Vector>(gtsam::Symbol('v', i));
+      // gtsam::Vector v = plan.at<gtsam::Vector>(gtsam::Symbol('v', i));
       for (size_t j = 0; j < arm_dof_; j++)
       {
         pt.positions.push_back(pose.configuration()[j]);
-        pt.velocities.push_back(v[j+3]);
+        // pt.velocities.push_back(v[j+3]);
       }
 
       // TODO - This is needed because the flexjoint is on wrong way
       pt.positions[1] = - pt.positions[1];
-      pt.velocities[1] = - pt.velocities[1];
+      // pt.velocities[1] = - pt.velocities[1];
 
       pt.positions[2] = - pt.positions[2];
-      pt.velocities[2] = - pt.velocities[2];
+      // pt.velocities[2] = - pt.velocities[2];
 
       pt.positions[3] = - pt.positions[3];
-      pt.velocities[3] = - pt.velocities[3];
+      // pt.velocities[3] = - pt.velocities[3];
 
       pt.positions[4] = - pt.positions[4];
-      pt.velocities[4] = - pt.velocities[4];
+      // pt.velocities[4] = - pt.velocities[4];
 
+      arm_goal.trajectory.points[ctr] = pt;
 
-      // The last joint (5) is just wrong..
-
-      pt.time_from_start = ros::Duration(i * delta_t);
-      arm_goal.trajectory.points.push_back(pt);
+      ctr+=1;
     }
 
     std::cout << "Sending arm goal" << std::endl;
@@ -744,9 +882,9 @@ void sdf_mp_integration::PlanningServer::executeArmPlan(const gtsam::Values& pla
 
 };
 
-void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& plan, const float delta_t) {
+void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& plan, const size_t current_ind, const double t_delay) {
     control_msgs::FollowJointTrajectoryGoal arm_goal;
-    tmc_omni_path_follower::PathFollowerGoal path_goal;
+    control_msgs::FollowJointTrajectoryGoal path_goal;
 
     arm_goal.trajectory.joint_names.push_back("arm_lift_joint");      
     arm_goal.trajectory.joint_names.push_back("arm_flex_joint");      
@@ -754,62 +892,65 @@ void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& pl
     arm_goal.trajectory.joint_names.push_back("wrist_flex_joint");      
     arm_goal.trajectory.joint_names.push_back("wrist_roll_joint");      
 
-    path_goal.path_with_goal.header.frame_id = "odom";
+    path_goal.trajectory.header.frame_id = "odom";
+    path_goal.trajectory.joint_names.push_back("odom_x");      
+    path_goal.trajectory.joint_names.push_back("odom_y");      
+    path_goal.trajectory.joint_names.push_back("odom_t");      
 
-    for (size_t i = 0; i < total_time_step_; i++)
+    int delay_inds = ceil(t_delay/delta_t_);
+
+    path_goal.trajectory.points.resize(total_time_step_ - 1 - current_ind - delay_inds);
+    arm_goal.trajectory.points.resize(total_time_step_ - 1 - current_ind - delay_inds);
+
+    std::cout << "Trajectories resized..." << std::endl;
+
+    size_t ctr = 0;
+    for (size_t i = current_ind + delay_inds + 1; i < total_time_step_; i++)
     {
+
       gpmp2::Pose2Vector pose = plan.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', i));
-      tf::Matrix3x3 rot_mat;
-      tf::Quaternion q;
-      rot_mat.setEulerZYX(pose.pose().theta(), 0, 0);
-	    rot_mat.getRotation(q);
+      // gtsam::Vector vel = plan.at<gtsam::Vector>(gtsam::Symbol('v', i));
 
-      geometry_msgs::PoseStamped pose_msg;
-      pose_msg.header.frame_id = "odom";
-      pose_msg.pose.position.x = pose.pose().x();
-      pose_msg.pose.position.y = pose.pose().y(); 
-      pose_msg.pose.position.z = 0;
-      pose_msg.pose.orientation.x = q[0];
-      pose_msg.pose.orientation.y = q[1];
-      pose_msg.pose.orientation.z = q[2];
-      pose_msg.pose.orientation.w = q[3];
-
-      path_goal.path_with_goal.poses.push_back(pose_msg);
-
-      if(i == total_time_step_ - 1){
-        path_goal.path_with_goal.goal = pose_msg.pose;
-      }
-
+      // Base goal
       trajectory_msgs::JointTrajectoryPoint pt;
+      pt.time_from_start = ros::Duration((ctr + 1 + delay_inds) * delta_t_); 
+      pt.positions = {pose.pose().x(), pose.pose().y(), pose.pose().theta()};
+
+      
+      // Arm goal
+
+      trajectory_msgs::JointTrajectoryPoint arm_pt;
+      arm_pt.time_from_start = ros::Duration((ctr + 1 + delay_inds) * delta_t_); 
 
       gtsam::Vector v = plan.at<gtsam::Vector>(gtsam::Symbol('v', i));
       for (size_t j = 0; j < arm_dof_; j++)
       {
-        pt.positions.push_back(pose.configuration()[j]);
-        pt.velocities.push_back(v[j+3]);
+        arm_pt.positions.push_back(pose.configuration()[j]);
+        // pt.velocities.push_back(vel[j+3]);
       }
 
       // TODO - This is needed because the flexjoint is on wrong way
-      pt.positions[1] = - pt.positions[1];
-      pt.velocities[1] = - pt.velocities[1];
+      arm_pt.positions[1] = - arm_pt.positions[1];
+      // arm_pt.velocities[1] = - arm_pt.velocities[1];
 
-      pt.positions[2] = - pt.positions[2];
-      pt.velocities[2] = - pt.velocities[2];
+      arm_pt.positions[2] = - arm_pt.positions[2];
+      // arm_pt.velocities[2] = - arm_pt.velocities[2];
 
-      pt.positions[3] = - pt.positions[3];
-      pt.velocities[3] = - pt.velocities[3];
+      arm_pt.positions[3] = - arm_pt.positions[3];
+      // arm_pt.velocities[3] = - arm_pt.velocities[3];
 
-      pt.positions[4] = - pt.positions[4];
-      pt.velocities[4] = - pt.velocities[4];
+      arm_pt.positions[4] = - arm_pt.positions[4];
+      // arm_pt.velocities[4] = - arm_pt.velocities[4];
 
-      pt.time_from_start = ros::Duration(i * delta_t);
-      arm_goal.trajectory.points.push_back(pt);
-
+      arm_goal.trajectory.points[ctr] = arm_pt;
+      path_goal.trajectory.points[ctr] = pt;
+      
+      ctr+=1;
     }
 
     std::cout << "Sending goals" << std::endl;
     execute_arm_ac_.sendGoal(arm_goal);
-    execute_ac_.sendGoal(path_goal);
+    base_traj_ac_.sendGoal(path_goal);
 
 };
 

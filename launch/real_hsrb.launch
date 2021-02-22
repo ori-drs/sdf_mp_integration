@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="hsrb" />
+  <arg name="personal_name" default="" />
+
+
+  <include file="$(find sdf_mp_integration)/launch/hsrb_sensor.xml" ></include>
+
+
+  <node name="transform_republish_node" pkg="sdf_mp_integration" type="transform_republish_node"/>
+  
+  <node name="hsr_python_controller_node" pkg="sdf_mp_integration" type="hsr_python_controller.py"/>
+
+  <param name="transform_topic" type="string" value="transform_topic" />
+  <param name="base_goal_sub_topic" type="string" value="/move_base_simple/goal" />
+  <!-- <param name="pcl_topic" type="string" value="/hsrb/head_rgbd_sensor/depth_registered/rectified_points" /> -->
+  <param name="pcl_topic" type="string" value="/local_points" />
+
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find sdf_mp_integration)/config/hsr_vis.rviz" />
+  <!-- <node name="planning_server" pkg="sdf_mp_integration" type="planning_server_node"/> -->
+
+</launch>

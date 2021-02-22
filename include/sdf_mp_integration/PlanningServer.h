@@ -13,6 +13,7 @@
 #include "tf/transform_datatypes.h"
 #include <tf/tf.h>
 #include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
 
 
 #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
@@ -56,6 +57,7 @@
 #include <sdf_mp_integration/WholeBodyPose.h>
 #include <sdf_mp_integration/HeadDirection.h>
 
+#include <sdf_mp_integration/utils/timing.h>
 
 
 // To execute base commands on hsr
@@ -127,6 +129,10 @@ class PlanningServer{
 
       std::mutex replan_mtx;
       // double traj_error_;
+      bool replanning_ = true;
+      tf::TransformBroadcaster br_;
+      float last_yaw_ = 0;
+      bool moving_ = false;
 
     public:
 
@@ -141,7 +147,8 @@ class PlanningServer{
       ~PlanningServer() {}
 
 
-      gtsam::Values getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose, const float delta_t);
+      gtsam::Values getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose);
+      void reinitTrajectoryRemainder(gtsam::Values &traj_before, const size_t current_ind);
 
       void clearBuffers();
       void recordExecutedTrajectory();
@@ -173,10 +180,11 @@ class PlanningServer{
       void visualiseBasePlan(const gtsam::Values& plan) const;
       void visualiseInitialBasePlan(const gtsam::Values& plan) const;
       void executePathFollow(const gtsam::Values& plan);
+      
       void executeBaseTrajectory(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
+      void executeArmPlan(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
+      void executeFullPlan(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
 
-      void executeArmPlan(const gtsam::Values& plan, const float delta_t);
-      void executeFullPlan(const gtsam::Values& plan, const float delta_t);
       void publishPlanMsg(const gtsam::Values& plan) const;
 
       void doneCb(const actionlib::SimpleClientGoalState& state, const tmc_omni_path_follower::PathFollowerResultConstPtr& result);

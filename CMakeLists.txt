@@ -71,6 +71,7 @@ add_library(${PROJECT_NAME}_lib
   src/GraphMaintainer.cpp
   src/SetHSRConf.cpp
   src/GenerateArm.cpp
+  src/utils/timing.cpp
 )
 
 add_message_files(
@@ -82,12 +83,13 @@ add_message_files(
   HeadDirection.msg
 )
 
+catkin_python_setup()
+
 generate_messages(
   DEPENDENCIES
   std_msgs
   geometry_msgs
 )
-
 catkin_package(
   INCLUDE_DIRS include
   CATKIN_DEPENDS roscpp   
@@ -127,6 +129,7 @@ src/PlanningServer.cpp
 src/GraphMaintainer.cpp
 src/SetHSRConf.cpp
 src/GenerateArm.cpp
+src/utils/timing.cpp
 
 )
 
@@ -159,6 +162,8 @@ ${catkin_LIBRARIES}
 ${roscpp_LIBRARIES} 
 gpmp2
 gtsam
+${CUDA_LIBRARIES}
+
 )
 
 
