@@ -19,6 +19,8 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
     delta_t_ = 0.5;
     look_ahead_time_ = 2.0;
     base_task_ = false;
+    arm_task_ = false;
+    full_task_ = false;
 
     // Subscriptions
     base_goal_sub_ = node_.subscribe(base_goal_sub_topic_, 10, &PlanningServer::baseGoalCallback, this);
@@ -452,9 +454,22 @@ void sdf_mp_integration::PlanningServer::replan(){
 
       // Start timer and execute
       last_traj_error = traj_error;
-      executeBaseTrajectory(traj_res_);
+
       // publishPlanMsg(traj_res_);
-      visualiseBasePlan(traj_res_);
+
+      if(base_task_){
+        executeBaseTrajectory(traj_res_, idx, 0.5);
+      }
+      else if(arm_task_){
+        executeArmPlan(traj_res_, idx, 0.5);
+      }
+      else if(full_task_){
+        executeFullPlan(traj_res_, idx, 0.5);
+      }
+
+      if(base_task_ || full_task_){
+        visualiseBasePlan(traj_res_);
+      }
 
       return;
     }
@@ -464,10 +479,22 @@ void sdf_mp_integration::PlanningServer::replan(){
     if (old_err_improvement > 0.5){
       printf("Found a better trajectory. Improvement: %f", old_err_improvement);
       last_traj_error = new_traj_error;
-      executeBaseTrajectory(res, idx, 0.5);
+
       if(base_task_){
+        executeBaseTrajectory(traj_res_, idx, 0.5);
+      }
+      else if(arm_task_){
+        executeArmPlan(traj_res_, idx, 0.5);
+
+      }
+      else if(full_task_){
+        executeFullPlan(traj_res_, idx, 0.5);
+      }
+
+      if(base_task_ || full_task_){
         visualiseBasePlan(res);
       }
+
       traj_res_ = res;
     }
 
@@ -505,7 +532,10 @@ void sdf_mp_integration::PlanningServer::replan(const ros::TimerEvent& /*event*/
 }
 
 void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
+
     base_task_ = true;
+    arm_task_ = false;
+    full_task_ = false;
 
     // Look at the target location
     look(msg->pose.position.x, msg->pose.position.y, 0.0, "odom");
@@ -570,11 +600,12 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
       
       traj_res_ = this->optimize(init_values);
       executeBaseTrajectory(traj_res_);
+      visualiseBasePlan(traj_res_);
 
-      for (size_t i = 0; i < trajectory_evolution_.size(); i++){
-        visualiseBasePlan(trajectory_evolution_[i]);
-        ros::Duration(0.2).sleep();
-      }
+      // for (size_t i = 0; i < trajectory_evolution_.size(); i++){
+      //   visualiseBasePlan(trajectory_evolution_[i]);
+      //   ros::Duration(0.2).sleep();
+      // }
 
       publishPlanMsg(traj_res_);
     }
@@ -585,6 +616,8 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
 void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg){
 
     base_task_ = false;
+    arm_task_ = true;
+    full_task_ = false;
 
     gpmp2::Pose2Vector start_pose;
     gtsam::Vector start_vel(8);
@@ -644,6 +677,8 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
 void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg){
 
     base_task_ = false;
+    arm_task_ = false;
+    full_task_ = true;
 
     // Look at the target location
     look(msg->base.pose.position.x, msg->base.pose.position.y, 0.0, "odom");

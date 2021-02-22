@@ -101,7 +101,7 @@ class PlanningServer{
       int odom_t_ind = 2;
 
       double look_ahead_time_;
-      bool base_task_;
+      bool base_task_, arm_task_, full_task_;
 
       gtsam::Vector5 joint_state_, joint_v_state_;
       gtsam::Vector3 odom_state_, odom_v_state_;
