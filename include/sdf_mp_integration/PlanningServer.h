@@ -56,6 +56,7 @@
 #include <sdf_mp_integration/WholeBodyPose.h>
 #include <sdf_mp_integration/HeadDirection.h>
 
+#include <sdf_mp_integration/utils/timing.h>
 
 
 // To execute base commands on hsr

@@ -71,6 +71,7 @@ add_library(${PROJECT_NAME}_lib
   src/GraphMaintainer.cpp
   src/SetHSRConf.cpp
   src/GenerateArm.cpp
+  src/utils/timing.cpp
 )
 
 add_message_files(
@@ -128,6 +129,7 @@ src/PlanningServer.cpp
 src/GraphMaintainer.cpp
 src/SetHSRConf.cpp
 src/GenerateArm.cpp
+src/utils/timing.cpp
 
 )
 
