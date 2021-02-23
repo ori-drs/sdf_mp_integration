@@ -20,9 +20,9 @@ find_package(roscpp REQUIRED)
 find_package(gpu_voxels_ros REQUIRED)
 find_package(gpmp2 REQUIRED)
 find_package(Boost COMPONENTS timer REQUIRED) # Why this is needed, i have no idea
-find_package(gpu_voxels PATHS /home/orion/installs/gpu-voxels/export REQUIRED)
+find_package(gpu_voxels PATHS /home/mark/installs/gpu-voxels/export REQUIRED)
 FIND_PACKAGE(CUDA REQUIRED)
-FIND_PACKAGE(icl_core PATHS /home/orion/installs/gpu-voxels/export REQUIRED )
+FIND_PACKAGE(icl_core PATHS /home/mark/installs/gpu-voxels/export REQUIRED )
 FIND_PACKAGE(Boost COMPONENTS system REQUIRED)
 FIND_PACKAGE(orocos_kdl REQUIRED)
 FIND_PACKAGE(rospy REQUIRED)
@@ -71,6 +71,7 @@ add_library(${PROJECT_NAME}_lib
   src/GraphMaintainer.cpp
   src/SetHSRConf.cpp
   src/GenerateArm.cpp
+  src/utils/timing.cpp
 )
 
 add_message_files(
@@ -82,12 +83,13 @@ add_message_files(
   HeadDirection.msg
 )
 
+catkin_python_setup()
+
 generate_messages(
   DEPENDENCIES
   std_msgs
   geometry_msgs
 )
-
 catkin_package(
   INCLUDE_DIRS include
   CATKIN_DEPENDS roscpp   
@@ -127,6 +129,7 @@ src/PlanningServer.cpp
 src/GraphMaintainer.cpp
 src/SetHSRConf.cpp
 src/GenerateArm.cpp
+src/utils/timing.cpp
 
 )
 

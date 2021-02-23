@@ -13,6 +13,7 @@
 #include "tf/transform_datatypes.h"
 #include <tf/tf.h>
 #include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
 
 
 #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
@@ -56,6 +57,7 @@
 #include <sdf_mp_integration/WholeBodyPose.h>
 #include <sdf_mp_integration/HeadDirection.h>
 
+#include <sdf_mp_integration/utils/timing.h>
 
 
 // To execute base commands on hsr
@@ -99,7 +101,7 @@ class PlanningServer{
       int odom_t_ind = 2;
 
       double look_ahead_time_;
-      bool base_task_;
+      bool base_task_, arm_task_, full_task_;
 
       gtsam::Vector5 joint_state_, joint_v_state_;
       gtsam::Vector3 odom_state_, odom_v_state_;
@@ -128,7 +130,10 @@ class PlanningServer{
       std::mutex replan_mtx;
       // double traj_error_;
       bool replanning_ = true;
-
+      tf::TransformBroadcaster br_;
+      float last_yaw_ = 0;
+      bool moving_ = false;
+      double last_traj_error;
     public:
 
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -142,7 +147,9 @@ class PlanningServer{
       ~PlanningServer() {}
 
 
-      gtsam::Values getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose, const float delta_t);
+      gtsam::Values getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose);
+      void reinitTrajectoryRemainder(gtsam::Values &traj_before, const size_t current_ind);
+      void reinitTrajectory(gtsam::Values &traj);
 
       void clearBuffers();
       void recordExecutedTrajectory();

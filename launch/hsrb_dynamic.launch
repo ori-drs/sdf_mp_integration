@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="hsrb"/>
+  <arg name="personal_name" default="" />
+  <arg name="debug" default="false"/>
+  <arg name="gui" default="false" />
+  <arg name="rviz" default="false"/>
+  <arg name="gazebo_visualization" default="false" />
+  <arg name="use_manipulation" default="true" />
+  <arg name="use_navigation" default="true" />
+  <arg name="use_perception" default="true" />
+  <arg name="use_task" default="false" />
+  <arg name="use_teleop" default="false" />
+  <arg name="use_web" default="false" />
+  <arg name="use_laser_odom" default="false" />
+  <arg name="paused" default="false" />
+  <arg name="fast_physics" default="true" />
+  <arg name="robot_name" default="$(optenv ROBOT_NAME hsrb)" />
+
+  <arg unless="$(arg fast_physics)" name="world_suffix" value=""/>
+  <arg     if="$(arg fast_physics)" name="world_suffix" value="_fast"/>
+
+  <node name="transform_republish_node" pkg="sdf_mp_integration" type="transform_republish_node"/>
+  
+  <node name="hsr_python_controller_node" pkg="sdf_mp_integration" type="hsr_python_controller.py"/>
+
+  <param name="transform_topic" type="string" value="transform_topic" />
+  <param name="base_goal_sub_topic" type="string" value="/move_base_simple/goal" />
+  <param name="pcl_topic" type="string" value="/hsrb/head_rgbd_sensor/depth_registered/rectified_points" />
+
+
+  <include file="$(find hsrb_gazebo_launch)/launch/include/hsrb_gazebo_common.xml" pass_all_args="true" >
+    <arg name="map" default="$(find tmc_potential_maps)/maps/white_space/map.yaml" />
+    <arg name="world_name" value="$(find tmc_gazebo_worlds)/worlds/empty$(arg world_suffix).world" />
+    <!-- <arg name="world_name" value="$(find sdf_mp_integration)/worlds/simple.world" /> -->
+    <arg name="robot_pos" value="-x -0.0 -y 0.0 -z 0.0 -Y 0.0"/>
+    <arg name="ground_truth_xyz_offset" value="0.0\ 0.0\ 0.0" />
+    <arg name="ground_truth_rpy_offset" value="0.0\ 0.0\ 0.0" />
+  </include>
+
+  <node name="spawn_cylinder" pkg="gazebo_ros" type="spawn_model" args="-file /home/mark/.gazebo/models/cylinder/model.sdf  -sdf -model cylinder -y 20.0 -x 20.0 -Y -1.57" />
+  <node name="spawn_cylinder2" pkg="gazebo_ros" type="spawn_model" args="-file /home/mark/.gazebo/models/cylinder/model.sdf  -sdf -model cylinder2 -y 20.0 -x 20.0 -Y -1.57" />
+  <!-- <node name="spawn_cylinder" pkg="gazebo_ros" type="spawn_model" args="-file /home/mark/.gazebo/models/cylinder/model.sdf  -sdf -model cylinder2 -y 2.0 -x 0.4 -Y -1.57" /> -->
+
+
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find sdf_mp_integration)/config/hsr_vis.rviz" />
+  <!-- <node name="planning_server" pkg="sdf_mp_integration" type="planning_server_node"/> -->
+
+</launch>
