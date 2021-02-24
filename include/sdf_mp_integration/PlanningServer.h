@@ -160,6 +160,7 @@ class PlanningServer{
 
       void createSettings();
       void createSettings(float total_time, int total_time_step);
+      void estimateSettings(const gpmp2::Pose2Vector& start_pose, const gpmp2::Pose2Vector& goal_pose);
 
       //For replanning
       void updateState(int idx);

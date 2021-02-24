@@ -346,6 +346,8 @@ bool sdf_mp_integration::PlanningServer::isTaskComplete(){
 
 void sdf_mp_integration::PlanningServer::replan(){
   
+  float error_theshold = 5;
+
   if (!isTaskComplete())
   {
     
@@ -365,80 +367,46 @@ void sdf_mp_integration::PlanningServer::replan(){
 
     // Check if the path is still good
     traj_error = graph_.error(traj_res_);    
-    if(last_traj_error < 1.5 * traj_error && last_traj_error >= traj_error){
+    if(last_traj_error < 1.5 * traj_error && last_traj_error >= traj_error && traj_error < error_theshold){
       std::cout << "Last error: " << last_traj_error << "\t New error: " << traj_error << std::endl;
       std::cout << "Using same trajectory."<< std::endl;
       return;
     }
 
-    if (( abs(float_idx - (double) idx) < 0.1) && (idx > last_idx_updated_))
-    {
-      // Update confs
-      std::cout << "Adding latest state..." << std::endl;
-      sdf_mp_integration::Timer updateStateTimer("update_state");
-      updateState(idx);
-      updateStateTimer.Stop();
-      last_idx_updated_ = idx;
-    }
+    // Create new graph from scratch
 
-    sdf_mp_integration::Timer optimisationTimer("");
-    gtsam::Values res = this->optimize(traj_res_, new_traj_error);
-    traj_error = graph_.error(traj_res_);    
-    optimisationTimer.Stop();
-    std::cout << "Current error: " << traj_error << "\t New error: " << new_traj_error << std::endl;
-    
-    old_err_improvement = (traj_error - new_traj_error)/traj_error;    
+    gpmp2::Pose2Vector start_pose;
+    gtsam::Vector start_vel(8);
+    this->getCurrentPose(start_pose, start_vel);
+    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
 
-    // If threshold is breached, create a new graph
-    float error_threshold = 100.0;
-    if(traj_error > error_threshold && new_traj_error > error_threshold && idx > 2){
-      gpmp2::Pose2Vector start_pose;
-      gtsam::Vector start_vel(8);
-      this->getCurrentPose(start_pose, start_vel);
-      gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
+    estimateSettings(start_pose, goal_state_);
 
-      // TODO - recalculate time remaining to use for graph length
-
-      // New graph
-      constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
-                                        sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
-                                        sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-                                        gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, goal_state_, end_vel);
+    // New graph
+    constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
+                                      sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
+                                      sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, goal_state_, end_vel);
 
 
-      // Reset timings
-      begin_t_ = ros::WallTime::now();
-      last_idx_updated_ = 0;
+    // Reset timings
+    begin_t_ = ros::WallTime::now();
+    last_idx_updated_ = 0;
 
-      // initial values
-      gtsam::Values init_values = getInitTrajectory(start_pose, goal_state_);
-      visualiseInitialBasePlan(init_values);
-      traj_res_ = this->optimize(init_values, traj_error);
+    // initial values
+    gtsam::Values init_values = getInitTrajectory(start_pose, goal_state_);
+    visualiseInitialBasePlan(init_values);
+    traj_res_ = this->optimize(init_values, traj_error);
 
-      std::cout << "Error threshold breached. Extended graph and new error is: " << traj_error << std::endl;
+    std::cout << "Error threshold breached. Extended graph and new error is: " << traj_error << std::endl;
 
-      // Start timer and execute
-      last_traj_error = traj_error;
+    // Start timer and execute
+    last_traj_error = traj_error;
 
-      publishPlanMsg(traj_res_);
-      executeTrajectory(traj_res_, 0, 0.5);
-      visualiseTrajectory(traj_res_);
-      
+    publishPlanMsg(traj_res_);
+    executeTrajectory(traj_res_, 0, 0.5);
+    visualiseTrajectory(traj_res_);
 
-      return;
-    }
-
-    // If cost is reduced by more than 50%, update
-    // if (old_err_improvement > 0.5 && old_err_improvement > reinit_err_improvement){
-    if (old_err_improvement > 0.5){
-      printf("Found a better trajectory. Improvement: %f", old_err_improvement);
-      executeTrajectory(traj_res_, idx, 0.5);
-      visualiseTrajectory(res);
-
-      traj_res_ = res;
-      last_traj_error = new_traj_error;
-
-    }
 
   } else{
     replan_timer_.stop();
@@ -455,6 +423,32 @@ void sdf_mp_integration::PlanningServer::replan(const ros::TimerEvent& /*event*/
   replanTimer.Stop();
   // sdf_mp_integration::Timing::Print(std::cout);
   replan_mtx.unlock();
+}
+
+void sdf_mp_integration::PlanningServer::estimateSettings(const gpmp2::Pose2Vector& start_pose, const gpmp2::Pose2Vector& goal_pose){
+
+  float est_traj_dist, est_traj_time;
+  int est_steps;
+
+  if(base_task_){
+    est_traj_dist = sqrt(std::pow( goal_pose.pose().x() - start_pose.pose().x(), 2) + std::pow(goal_pose.pose().y() - start_pose.pose().y(), 2));
+    est_traj_time = est_traj_dist / 0.15;
+    est_steps = round(est_traj_time/delta_t_) + 1;  
+    est_traj_time = est_steps * delta_t_;
+  }
+  else if(arm_task_){
+    est_traj_time = 10; // TODO - need to automate this calculation
+    est_steps = round(est_traj_time/delta_t_) + 1;
+  }
+  else if(full_task_){
+    est_traj_dist = sqrt(std::pow( goal_pose.pose().x() - start_pose.pose().x(), 2) + std::pow(goal_pose.pose().y() - start_pose.pose().y(), 2));
+    est_traj_time = est_traj_dist / 0.15;
+    est_steps = round(est_traj_time/delta_t_) + 1;  
+    est_traj_time = est_steps * delta_t_;
+  }
+
+  createSettings(est_traj_time, est_steps);
+
 }
 
 void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
@@ -486,11 +480,7 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     goal_state_ = end_pose;
 
     // Determine how long the trajectory should be and how it should be split up
-    float est_traj_dist = sqrt(std::pow( msg->pose.position.x - start_pose.pose().x(), 2) + std::pow(msg->pose.position.y - start_pose.pose().y(), 2));
-    int est_traj_time = ceil( est_traj_dist / 0.15);
-    int est_steps = round(est_traj_time/delta_t_) + 1;
-
-    createSettings((float) est_traj_time, est_steps);
+    estimateSettings(start_pose, end_pose);
 
     sdf_mp_integration::Timer graphTimer("GraphConstruction");
 
@@ -557,13 +547,11 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
     }
     gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
     gpmp2::Pose2Vector end_pose(start_pose.pose(), end_conf); // Same starting base pose
+    goal_state_ = end_pose;
 
     // settings
     // Determine how long the trajectory should be and how it should be split up
-    int est_traj_time = 10; // TODO - need to automate this calculation
-    int est_steps = round(est_traj_time/delta_t_) + 1;
-
-    createSettings((float) est_traj_time, est_steps);
+    estimateSettings(start_pose, end_pose);
 
     // initial values
     gtsam::Values init_values = getInitTrajectory(start_pose, end_pose);
@@ -630,14 +618,11 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
     double end_roll, end_pitch, end_yaw;
     m.getRPY(end_roll, end_pitch, end_yaw);
     gpmp2::Pose2Vector end_pose(gtsam::Pose2(msg->base.pose.position.x, msg->base.pose.position.y, end_yaw), end_conf);
-    
+    goal_state_ = end_pose;
+
     // settings
     // Determine how long the trajectory should be and how it should be split up
-    float est_traj_dist = sqrt(std::pow( msg->base.pose.position.x - start_pose.pose().x(), 2) + std::pow(msg->base.pose.position.y - start_pose.pose().y(), 2));
-    int est_traj_time = ceil( est_traj_dist / 0.15);
-    int est_steps = round(est_traj_time/delta_t_) + 1;
-
-    createSettings((float) est_traj_time, est_steps);
+    estimateSettings(start_pose, end_pose);
 
     // initial values
 
