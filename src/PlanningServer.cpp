@@ -458,13 +458,13 @@ void sdf_mp_integration::PlanningServer::replan(){
       // publishPlanMsg(traj_res_);
 
       if(base_task_){
-        executeBaseTrajectory(traj_res_, idx, 0.5);
+        executeBaseTrajectory(traj_res_, 0, 0.5);
       }
       else if(arm_task_){
-        executeArmPlan(traj_res_, idx, 0.5);
+        executeArmPlan(traj_res_, 0, 0.5);
       }
       else if(full_task_){
-        executeFullPlan(traj_res_, idx, 0.5);
+        executeFullPlan(traj_res_, 0, 0.5);
       }
 
       if(base_task_ || full_task_){
