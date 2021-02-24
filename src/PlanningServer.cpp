@@ -749,7 +749,7 @@ void sdf_mp_integration::PlanningServer::visualiseInitialBasePlan(const gtsam::V
 
 void sdf_mp_integration::PlanningServer::visualiseTrajectory(const gtsam::Values& plan) const{
       if(base_task_ || full_task_){
-        visualiseBasePlan(res);
+        visualiseBasePlan(plan);
       }
       else{
         return;
