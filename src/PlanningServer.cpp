@@ -17,7 +17,7 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
     node_.param<std::string>("full_goal_sub_topic", full_goal_sub_topic_, "full_goal");
     node_.param<double>("resolution", resolution_, 0.05);
     delta_t_ = 0.5;
-    look_ahead_time_ = 2.0;
+
     base_task_ = false;
     arm_task_ = false;
     full_task_ = false;
@@ -220,7 +220,7 @@ void sdf_mp_integration::PlanningServer::createSettings(float total_time, int to
     total_time_ = total_time;
     // node_.param<float>("epsilon", epsilon_, 0.5);
     // node_.param<float>("cost_sigma", cost_sigma_, 0.2);
-    node_.param<float>("epsilon", epsilon_, 0.5);
+    node_.param<float>("epsilon", epsilon_, 0.2);
     node_.param<float>("cost_sigma", cost_sigma_, 0.05);
     node_.param<int>("obs_check_inter", obs_check_inter_, 10);
     node_.param<bool>("flag_pos_limit", flag_pos_limit_, false);
@@ -346,15 +346,10 @@ bool sdf_mp_integration::PlanningServer::isTaskComplete(){
 
 void sdf_mp_integration::PlanningServer::replan(){
   
-  // std::cout << "Replan event activated" << std::endl;
 
   if (!isTaskComplete())
   {
-    // std::cout << "Task in progress. Replanning..." << std::endl;
-    // if(moving_){
-    //   look(2.0, 0.0, 0.0, "travel");
-    // }
-
+    
     double traj_error, new_traj_error, reinit_traj_error, old_err_improvement, reinit_err_improvement;
     // Calculate which index variable node we're at
     ros::WallTime current_t = ros::WallTime::now();
@@ -369,33 +364,13 @@ void sdf_mp_integration::PlanningServer::replan(){
     double float_idx = dur.toSec()/delta_t_;
     int idx = round(float_idx);
 
-    // std::cout << "idx: " << idx << std::endl;
-
     // Check if the path is still good
     traj_error = graph_.error(traj_res_);    
     if(last_traj_error < 1.5 * traj_error && last_traj_error > traj_error){
       std::cout << "Last error: " << last_traj_error << "\t New error: " << traj_error << std::endl;
       std::cout << "Using same trajectory."<< std::endl;
-
-      // sdf_mp_integration::Timer optimisationTimer("");
-      // gtsam::Values res = this->optimize(traj_res_, new_traj_error);
-      // optimisationTimer.Stop();
-      // old_err_improvement = (traj_error - new_traj_error)/traj_error;
-
-      // if (old_err_improvement > 0.5){
-      //   printf("Found a better trajectory. Improvement: %f", old_err_improvement);
-      //   last_traj_error = new_traj_error;
-      //   executeBaseTrajectory(res, idx, 0.5);
-      //   if(base_task_){
-      //     visualiseBasePlan(res);
-      //   }
-      //   traj_res_ = res;
-      // }
-
       return;
     }
-
-    // traj_error = graph_.error(traj_res_);    
 
     if (( abs(float_idx - (double) idx) < 0.1) && (idx > last_idx_updated_))
     {
@@ -407,69 +382,50 @@ void sdf_mp_integration::PlanningServer::replan(){
       last_idx_updated_ = idx;
     }
 
-    // Check if it
-
-    // sdf_mp_integration::Timer reinitAndOptimiseTimer("reinit_and_optimise");
-    // gtsam::Values traj_res_copy =  traj_res_;
-    // // this->reinitTrajectoryRemainder(traj_res_copy, idx);
-    // this->reinitTrajectory(traj_res_copy);
-    // gtsam::Values reinit_res = this->optimize(traj_res_copy, reinit_traj_error);
-    // reinitAndOptimiseTimer.Stop();
-    
     sdf_mp_integration::Timer optimisationTimer("");
     gtsam::Values res = this->optimize(traj_res_, new_traj_error);
     traj_error = graph_.error(traj_res_);    
     optimisationTimer.Stop();
-
     std::cout << "Current error: " << traj_error << "\t New error: " << new_traj_error << std::endl;
     
-    old_err_improvement = (traj_error - new_traj_error)/traj_error;
-    // reinit_err_improvement = (traj_error - reinit_traj_error)/traj_error;
-    
+    old_err_improvement = (traj_error - new_traj_error)/traj_error;    
 
     // If threshold is breached, create a new graph
     float error_threshold = 100.0;
     if(traj_error > error_threshold && new_traj_error > error_threshold && idx > 2){
-    // if(new_traj_error > error_threshold){
       gpmp2::Pose2Vector start_pose;
       gtsam::Vector start_vel(8);
       this->getCurrentPose(start_pose, start_vel);
       gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
+
+      // TODO - recalculate time remaining to use for graph length
+
+
+      // New graph
       constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
                                         sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
                                         sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
                                         gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, goal_state_, end_vel);
 
 
+      // Reset timings
       begin_t_ = ros::WallTime::now();
       last_idx_updated_ = 0;
 
       // initial values
       gtsam::Values init_values = getInitTrajectory(start_pose, goal_state_);
       visualiseInitialBasePlan(init_values);
-      traj_res_ = this->optimize(init_values);
-      traj_error = graph_.error(traj_res_);    
+      traj_res_ = this->optimize(init_values, traj_error);
 
       std::cout << "Error threshold breached. Extended graph and new error is: " << traj_error << std::endl;
 
       // Start timer and execute
       last_traj_error = traj_error;
 
-      // publishPlanMsg(traj_res_);
-
-      if(base_task_){
-        executeBaseTrajectory(traj_res_, 0, 0.5);
-      }
-      else if(arm_task_){
-        executeArmPlan(traj_res_, 0, 0.5);
-      }
-      else if(full_task_){
-        executeFullPlan(traj_res_, 0, 0.5);
-      }
-
-      if(base_task_ || full_task_){
-        visualiseBasePlan(traj_res_);
-      }
+      publishPlanMsg(traj_res_);
+      executeTrajectory(traj_res_, 0, 0.5);
+      visualiseTrajectory(traj_res_);
+      
 
       return;
     }
@@ -478,46 +434,18 @@ void sdf_mp_integration::PlanningServer::replan(){
     // if (old_err_improvement > 0.5 && old_err_improvement > reinit_err_improvement){
     if (old_err_improvement > 0.5){
       printf("Found a better trajectory. Improvement: %f", old_err_improvement);
-      last_traj_error = new_traj_error;
-
-      if(base_task_){
-        executeBaseTrajectory(traj_res_, idx, 0.5);
-      }
-      else if(arm_task_){
-        executeArmPlan(traj_res_, idx, 0.5);
-
-      }
-      else if(full_task_){
-        executeFullPlan(traj_res_, idx, 0.5);
-      }
-
-      if(base_task_ || full_task_){
-        visualiseBasePlan(res);
-      }
+      executeTrajectory(traj_res_, idx, 0.5);
+      visualiseTrajectory(res);
 
       traj_res_ = res;
+      last_traj_error = new_traj_error;
+
     }
-
-    // else if(reinit_err_improvement > 0.2 && reinit_err_improvement > old_err_improvement){
-    //   printf("Found a better trajectory. Improvement: %f", reinit_traj_error);
-    //   executeBaseTrajectory(reinit_res, idx, 0.5);
-    //   // look(res, idx, look_ahead_time_, "odom");
-    //   if(base_task_){
-    //     // look(1.0, 0.0, 0.0, "travel");
-    //     visualiseBasePlan(reinit_res);
-    //   }
-    //   traj_res_ = reinit_res;
-    // } 
-    // else{
-    //   return;
-    // }
-
 
   } else{
     replan_timer_.stop();
     std::cout << "Finished re-planning - goal reached!" << std::endl;
     look(1.0, 0, 0.0, "base_footprint");
-
   }
 
 }
@@ -819,6 +747,15 @@ void sdf_mp_integration::PlanningServer::visualiseInitialBasePlan(const gtsam::V
     init_path_pub_.publish(path);
 };
 
+void sdf_mp_integration::PlanningServer::visualiseTrajectory(const gtsam::Values& plan) const{
+      if(base_task_ || full_task_){
+        visualiseBasePlan(res);
+      }
+      else{
+        return;
+      }
+};
+
 void sdf_mp_integration::PlanningServer::visualiseBasePlan(const gtsam::Values& plan) const{
     nav_msgs::Path path;
     path.header.frame_id = "odom";
@@ -882,6 +819,19 @@ void sdf_mp_integration::PlanningServer::executePathFollow(const gtsam::Values& 
 
     execute_ac_.sendGoal(path_goal);
     
+
+};
+
+void sdf_mp_integration::PlanningServer::executeTrajectory(const gtsam::Values& plan, const size_t current_ind, const double t_delay) {
+      if(base_task_){
+        executeBaseTrajectory(traj_res_, current_ind, t_delay);
+      }
+      else if(arm_task_){
+        executeArmPlan(traj_res_, current_ind, t_delay);
+      }
+      else if(full_task_){
+        executeFullPlan(traj_res_, current_ind, t_delay);
+      }
 
 };
 
@@ -1240,8 +1190,6 @@ gtsam::Values sdf_mp_integration::PlanningServer::optimize(const gtsam::Values& 
 
 };
 
-
-
 gtsam::Values sdf_mp_integration::PlanningServer::manualOptimize(const gtsam::Values& init_values, bool iter_no_increase){
 
   using namespace std;
@@ -1348,7 +1296,6 @@ gtsam::Values sdf_mp_integration::PlanningServer::manualOptimize(const gtsam::Va
   }
 
 };
-
 
 
 

@@ -100,7 +100,6 @@ class PlanningServer{
       int odom_y_ind = 1;
       int odom_t_ind = 2;
 
-      double look_ahead_time_;
       bool base_task_, arm_task_, full_task_;
 
       gtsam::Vector5 joint_state_, joint_v_state_;
@@ -178,10 +177,14 @@ class PlanningServer{
       void armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg);
       void baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
       void fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg);
+      
+      
+      void visualiseTrajectory(const gtsam::Values& plan) const;
       void visualiseBasePlan(const gtsam::Values& plan) const;
       void visualiseInitialBasePlan(const gtsam::Values& plan) const;
       void executePathFollow(const gtsam::Values& plan);
       
+      void executeTrajectory(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
       void executeBaseTrajectory(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
       void executeArmPlan(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
       void executeFullPlan(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
