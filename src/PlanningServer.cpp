@@ -824,13 +824,13 @@ void sdf_mp_integration::PlanningServer::executePathFollow(const gtsam::Values& 
 
 void sdf_mp_integration::PlanningServer::executeTrajectory(const gtsam::Values& plan, const size_t current_ind, const double t_delay) {
       if(base_task_){
-        executeBaseTrajectory(traj_res_, current_ind, t_delay);
+        executeBaseTrajectory(plan, current_ind, t_delay);
       }
       else if(arm_task_){
-        executeArmPlan(traj_res_, current_ind, t_delay);
+        executeArmPlan(plan, current_ind, t_delay);
       }
       else if(full_task_){
-        executeFullPlan(traj_res_, current_ind, t_delay);
+        executeFullPlan(plan, current_ind, t_delay);
       }
 
 };
