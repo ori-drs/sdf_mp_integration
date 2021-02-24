@@ -346,7 +346,6 @@ bool sdf_mp_integration::PlanningServer::isTaskComplete(){
 
 void sdf_mp_integration::PlanningServer::replan(){
   
-
   if (!isTaskComplete())
   {
     
@@ -366,7 +365,7 @@ void sdf_mp_integration::PlanningServer::replan(){
 
     // Check if the path is still good
     traj_error = graph_.error(traj_res_);    
-    if(last_traj_error < 1.5 * traj_error && last_traj_error > traj_error){
+    if(last_traj_error < 1.5 * traj_error && last_traj_error >= traj_error){
       std::cout << "Last error: " << last_traj_error << "\t New error: " << traj_error << std::endl;
       std::cout << "Using same trajectory."<< std::endl;
       return;
@@ -399,7 +398,6 @@ void sdf_mp_integration::PlanningServer::replan(){
       gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
 
       // TODO - recalculate time remaining to use for graph length
-
 
       // New graph
       constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
