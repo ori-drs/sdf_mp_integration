@@ -27,6 +27,7 @@
   <run_depend>voxblox_msgs</run_depend>
   <run_depend>voxblox_rviz_plugin</run_depend> -->
   <run_depend>tf</run_depend>
+  <build_depend>robot_self_filter</build_depend>
 
   <!-- To build msgs -->
   <build_depend>message_generation</build_depend>
