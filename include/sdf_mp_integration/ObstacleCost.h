@@ -18,7 +18,7 @@
 #include <sdf_mp_integration/SDFHandler.h>
 
 
-namespace gpmp2 {
+namespace sdf_mp_integration {
 
   // /// hinge loss obstacle cost function
   // inline double hingeLossObstacleCost(const gtsam::Point3& point, const sdf_mp_integration::SDFHandler<FiestaPtr> sdf_handler,
@@ -28,7 +28,7 @@ namespace gpmp2 {
   //   double dist_signed;
   //   try {
   //     dist_signed = sdf_handler.getSignedDistance(point, field_gradient);
-  //   } catch (SDFQueryOutOfRange&) {
+  //   } catch (gpmp2::SDFQueryOutOfRange&) {
   //     //std::cout << "[hingeLossObstacleCost] WARNING: querying signed distance out of range, "
   //     //    "assume zero obstacle cost." << std::endl;
   //     if (H_point) *H_point = gtsam::Matrix13::Zero();
@@ -54,7 +54,7 @@ namespace gpmp2 {
   //   double dist_signed;
   //   try {
   //     dist_signed = sdf_handler.getSignedDistance(point, field_gradient);
-  //   } catch (SDFQueryOutOfRange&) {
+  //   } catch (gpmp2::SDFQueryOutOfRange&) {
   //     //std::cout << "[hingeLossObstacleCost] WARNING: querying signed distance out of range, "
   //     //    "assume zero obstacle cost." << std::endl;
   //     if (H_point) *H_point = gtsam::Matrix13::Zero();
@@ -81,7 +81,7 @@ namespace gpmp2 {
     double dist_signed;
     try {
       dist_signed = sdf_handler.getSignedDistance(point, field_gradient);
-    } catch (SDFQueryOutOfRange&) {
+    } catch (gpmp2::SDFQueryOutOfRange&) {
       //std::cout << "[hingeLossObstacleCost] WARNING: querying signed distance out of range, "
       //    "assume zero obstacle cost." << std::endl;
       if (H_point) *H_point = gtsam::Matrix13::Zero();

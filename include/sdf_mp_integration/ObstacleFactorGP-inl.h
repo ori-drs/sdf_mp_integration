@@ -5,8 +5,7 @@
  *  @date  14 September, 2020
  **/
 
-#include <gpmp2/obstacle/ObstacleCost.h>
-#include <sdf_mp_integration/ObstacleCost.h>
+// #include <gpmp2/obstacle/ObstacleCost.h>
 
 using namespace std;
 using namespace gtsam;
@@ -57,13 +56,13 @@ gtsam::Vector ObstacleFactorGP<SDFPACKAGEPTR, ROBOT, GPINTER>::evaluateError(
 
     if (H1) {
       Matrix13 Jerr_point;
-      err(sph_idx) = gpmp2::hingeLossObstacleCost(sph_centers[sph_idx], sdf_handler_, total_eps, Jerr_point);
+      err(sph_idx) = sdf_mp_integration::hingeLossObstacleCost(sph_centers[sph_idx], sdf_handler_, total_eps, Jerr_point);
 
       // chain rules
       Jerr_conf.row(sph_idx) = Jerr_point * J_px_jp[sph_idx];
 
     } else {
-      err(sph_idx) = gpmp2::hingeLossObstacleCost(sph_centers[sph_idx], sdf_handler_, total_eps);
+      err(sph_idx) = sdf_mp_integration::hingeLossObstacleCost(sph_centers[sph_idx], sdf_handler_, total_eps);
     }
   }
 

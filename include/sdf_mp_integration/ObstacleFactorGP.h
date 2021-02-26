@@ -16,6 +16,8 @@
 
 #include <vector>
 
+#include <gpmp2/obstacle/ObstacleCost.h>
+#include <sdf_mp_integration/ObstacleCost.h>
 #include <sdf_mp_integration/SDFHandler.h>
 
 namespace sdf_mp_integration {

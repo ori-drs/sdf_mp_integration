@@ -13,6 +13,9 @@
 #include <gtsam/base/Vector.h>
 #include <gtsam/geometry/Point3.h>
 
+#include <gpmp2/obstacle/ObstacleCost.h>
+#include <sdf_mp_integration/ObstacleCost.h>
+
 #include <iostream>
 #include <vector>
 #include <sdf_mp_integration/SDFHandler.h>
@@ -83,6 +86,8 @@ public:
       boost::optional<gtsam::Matrix&> H1 = boost::none) const ;
 
   gtsam::Vector spheresInCollision(const typename Robot::Pose& conf) const ;
+
+  bool isInCollision(const typename Robot::Pose& conf) const ;
 
   /// @return a deep copy of this factor
   virtual gtsam::NonlinearFactor::shared_ptr clone() const {

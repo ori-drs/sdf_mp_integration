@@ -5,8 +5,7 @@
  *  @date  09 September, 2020
  **/
 
-#include <gpmp2/obstacle/ObstacleCost.h>
-#include <sdf_mp_integration/ObstacleCost.h>
+// #include <gpmp2/obstacle/ObstacleCost.h>
 
 using namespace std;
 using namespace gtsam;
@@ -42,13 +41,13 @@ gtsam::Vector ObstacleFactor<SDFPACKAGEPTR, ROBOT>::evaluateError(
 
     if (H1) {
       Matrix13 Jerr_point;
-      err(sph_idx) = gpmp2::hingeLossObstacleCost(sph_centers[sph_idx], sdf_handler_, total_eps, Jerr_point);
+      err(sph_idx) = sdf_mp_integration::hingeLossObstacleCost(sph_centers[sph_idx], sdf_handler_, total_eps, Jerr_point);
 
       // chain rules
       H1->row(sph_idx) = Jerr_point * J_px_jp[sph_idx];
 
     } else {
-      err(sph_idx) = gpmp2::hingeLossObstacleCost(sph_centers[sph_idx], sdf_handler_, total_eps);
+      err(sph_idx) = sdf_mp_integration::hingeLossObstacleCost(sph_centers[sph_idx], sdf_handler_, total_eps);
     }
   }
 
@@ -70,7 +69,7 @@ gtsam::Vector ObstacleFactor<SDFPACKAGEPTR, ROBOT>::spheresInCollision(
   for (size_t sph_idx = 0; sph_idx < robot_.nr_body_spheres(); sph_idx++) {
 
     const double sphere_radius = robot_.sphere_radius(sph_idx);
-    if (hingeLossObstacleCost(sph_centers[sph_idx], sdf_handler_, sphere_radius)>0) {
+    if (sdf_mp_integration::hingeLossObstacleCost(sph_centers[sph_idx], sdf_handler_, sphere_radius)>0) {
       spheres_in_collision(sph_idx) = 1;
     }
     else
@@ -81,6 +80,13 @@ gtsam::Vector ObstacleFactor<SDFPACKAGEPTR, ROBOT>::spheresInCollision(
   }
 
   return spheres_in_collision;
+}
+
+template <typename SDFPACKAGEPTR, typename ROBOT>
+bool ObstacleFactor<SDFPACKAGEPTR, ROBOT>::isInCollision(
+    const typename Robot::Pose& conf) const {
+
+  return spheresInCollision(conf).sum() > 0;
 }
 
 }
