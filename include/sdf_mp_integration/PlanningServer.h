@@ -22,6 +22,7 @@
 
 #include <gpmp2/geometry/Pose2Vector.h>
 
+#include <gpmp2/planner/TrajUtils.h>
 #include <gpmp2/planner/TrajOptimizerSetting.h>
 #include <gpmp2/kinematics/JointLimitFactorVector.h>
 #include <gpmp2/kinematics/JointLimitFactorPose2Vector.h>
@@ -58,6 +59,7 @@
 #include <sdf_mp_integration/HeadDirection.h>
 
 #include <sdf_mp_integration/utils/timing.h>
+#include <sdf_mp_integration/utils/traj_utils.h>
 
 
 // To execute base commands on hsr
@@ -109,6 +111,7 @@ class PlanningServer{
       std::vector<ros::Time> base_time_buffer_;
       std::vector<float> base_x_buffer_, base_y_buffer_, base_t_buffer_;
 
+      std::map<std::string, std::vector< std::vector<size_t> > > factor_index_dict_;
       int total_time_step_;
       float total_time_;
       float epsilon_;
@@ -133,6 +136,8 @@ class PlanningServer{
       float last_yaw_ = 0;
       bool moving_ = false;
       double last_traj_error;
+      size_t goal_id_ = 0;
+
     public:
 
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -180,15 +185,17 @@ class PlanningServer{
       void fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg);
       
       
-      void visualiseTrajectory(const gtsam::Values& plan) const;
-      void visualiseBasePlan(const gtsam::Values& plan) const;
-      void visualiseInitialBasePlan(const gtsam::Values& plan) const;
+      void visualiseTrajectory(const gtsam::Values& plan, const size_t num_keys) const;
+      void visualiseBasePlan(const gtsam::Values& plan, const size_t num_keys) const;
+      void visualiseInitialBasePlan(const gtsam::Values& plan, const size_t num_keys) const;
       void executePathFollow(const gtsam::Values& plan);
-      
+
+      bool hasExecutionStopped() const;
+      void cancelAllGoals();
       void executeTrajectory(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
-      void executeBaseTrajectory(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
-      void executeArmPlan(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
-      void executeFullPlan(const gtsam::Values& plan, const size_t current_ind = 0, const double t_delay = 0);
+      void executeBaseTrajectory(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind = 0, const double t_delay = 0);
+      void executeArmPlan(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind = 0, const double t_delay = 0);
+      void executeFullPlan(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind = 0, const double t_delay = 0);
 
       void publishPlanMsg(const gtsam::Values& plan) const;
 
@@ -196,15 +203,19 @@ class PlanningServer{
       void activeCb();
       void feedbackCb(const tmc_omni_path_follower::PathFollowerFeedbackConstPtr& feedback);
 
+      bool collisionCheck(const gtsam::Values &traj);
       template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
                 class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
       void constructGraph(const ROBOT& arm,
                                     const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
                                     const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel);
 
+
+      void printCosts(const gtsam::Values& traj);
+      void printFactorTimeline();
       gtsam::Values optimize(const gtsam::Values& init_values);
       gtsam::Values manualOptimize(const gtsam::Values& init_values, bool iter_no_increase = true);
-      gtsam::Values optimize(const gtsam::Values& init_values, double& final_err, bool iter_no_increase = true);
+      gtsam::Values optimize(const gtsam::Values& init_values, double& final_err, int& iters, bool iter_no_increase = true);
 
       // void armGoalCallback(const messagetype::ConstPtr& msg);
       // void fullGoalCallback(const messagetype::ConstPtr& msg);

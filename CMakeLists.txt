@@ -72,7 +72,8 @@ add_library(${PROJECT_NAME}_lib
   src/SetHSRConf.cpp
   src/GenerateArm.cpp
   src/utils/timing.cpp
-)
+  src/utils/traj_utils.cpp
+  )
 
 add_message_files(
   FILES
@@ -130,6 +131,7 @@ src/GraphMaintainer.cpp
 src/SetHSRConf.cpp
 src/GenerateArm.cpp
 src/utils/timing.cpp
+src/utils/traj_utils.cpp
 
 )
 
