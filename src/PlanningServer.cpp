@@ -327,21 +327,30 @@ bool sdf_mp_integration::PlanningServer::isTaskComplete(){
     //           << "yerr: " <<  abs(odom_state_[1] - goal_state_.pose().y())
     //           << "terr: " <<  abs(odom_state_[2] - goal_state_.pose().theta()) << std::endl;
 
-    return (abs(odom_state_[0] - goal_state_.pose().x()) <= 0.08 &&
-    abs(odom_state_[1] - goal_state_.pose().y()) <= 0.08 &&
-    abs(odom_state_[2] - goal_state_.pose().theta()) <= 0.05 // about 6 degrees
+    return (abs(odom_state_[0] - goal_state_.pose().x()) <= 0.05 &&
+    abs(odom_state_[1] - goal_state_.pose().y()) <= 0.05 &&
+    abs(odom_state_[2] - goal_state_.pose().theta()) <= 0.1 // about 6 degrees
     );
   }
   else{
-    return (abs(odom_state_[0] - goal_state_.pose().x()) <= 0.08 &&
-    abs(odom_state_[1] - goal_state_.pose().y()) <= 0.08 &&
-    abs(odom_state_[2] - goal_state_.pose().theta()) <= 0.05 && // about 2.5 degrees
+    // std::cout << "xerr: " << abs(odom_state_[0] - goal_state_.pose().x())
+    //           << "yerr: " <<  abs(odom_state_[1] - goal_state_.pose().y())
+    //           << "terr: " <<  abs(odom_state_[2] - goal_state_.pose().theta()) 
+    //           << "1err: " <<  abs(joint_state_[0] - goal_state_.configuration()[0])
+    //           << "2err: " <<  abs(joint_state_[1] - goal_state_.configuration()[1])
+    //           << "3err: " <<  abs(joint_state_[2] - goal_state_.configuration()[2])
+    //           << "4err: " <<  abs(joint_state_[3] - goal_state_.configuration()[3]) 
+    //           << "5err: " <<  abs(joint_state_[4] - goal_state_.configuration()[4]) << std::endl;
 
-    abs(joint_state_[0] - goal_state_.configuration()[0]) <= 0.05 &&
-    abs(joint_state_[1] - goal_state_.configuration()[0]) <= 0.05 &&
-    abs(joint_state_[2] - goal_state_.configuration()[0]) <= 0.05 &&
-    abs(joint_state_[3] - goal_state_.configuration()[0]) <= 0.05 &&
-    abs(joint_state_[4] - goal_state_.configuration()[0]) <= 0.05);
+    return (abs(odom_state_[0] - goal_state_.pose().x()) <= 0.05 &&
+    abs(odom_state_[1] - goal_state_.pose().y()) <= 0.05 &&
+    abs(odom_state_[2] - goal_state_.pose().theta()) <= 0.1 && // about 2.5 degrees
+
+    abs(joint_state_[0] - goal_state_.configuration()[0]) <= 0.02 &&
+    abs(joint_state_[1] - goal_state_.configuration()[1]) <= 0.02 &&
+    abs(joint_state_[2] - goal_state_.configuration()[2]) <= 0.02 &&
+    abs(joint_state_[3] - goal_state_.configuration()[3]) <= 0.02 &&
+    abs(joint_state_[4] - goal_state_.configuration()[4]) <= 0.02);
   }
 
 
