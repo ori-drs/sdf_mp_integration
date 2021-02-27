@@ -40,6 +40,7 @@
 
   <node name="spawn_cylinder" pkg="gazebo_ros" type="spawn_model" args="-file /home/mark/.gazebo/models/cylinder/model.sdf  -sdf -model cylinder -y 20.0 -x 20.0 -Y -1.57" />
   <node name="spawn_cylinder2" pkg="gazebo_ros" type="spawn_model" args="-file /home/mark/.gazebo/models/cylinder/model.sdf  -sdf -model cylinder2 -y 20.0 -x 20.0 -Y -1.57" />
+  <node name="spawn_cylinder3" pkg="gazebo_ros" type="spawn_model" args="-file /home/mark/.gazebo/models/thin_cylinder/model.sdf  -sdf -model cylinder3 -y 20.0 -x 20.0 -Y -1.57" />
   <!-- <node name="spawn_cylinder" pkg="gazebo_ros" type="spawn_model" args="-file /home/mark/.gazebo/models/cylinder/model.sdf  -sdf -model cylinder2 -y 2.0 -x 0.4 -Y -1.57" /> -->
 
 
