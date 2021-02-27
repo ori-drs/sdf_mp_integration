@@ -40,6 +40,9 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
 
     arm_ = GenerateHSRArm();
 
+    dh_vis_ = HSRVisualiser(node_);
+    dh_vis_.setArm(arm_);
+
     // execute_ac_ = actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction>("path_follow_action", true);
     ROS_INFO("Waiting for action servers to start.");
     execute_ac_.waitForServer();
@@ -395,6 +398,7 @@ void sdf_mp_integration::PlanningServer::replan(){
     gtsam::Vector start_vel(8);
     this->getCurrentPose(start_pose, start_vel);
     gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
+    dh_vis_.visualiseRobot(start_pose, 1);
 
     results_recorder_.recordActualTrajUpdate(task_dur_.toSec(), start_pose);
 

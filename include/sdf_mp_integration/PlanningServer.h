@@ -60,6 +60,7 @@
 
 #include <sdf_mp_integration/utils/timing.h>
 #include <sdf_mp_integration/utils/traj_utils.h>
+#include <sdf_mp_integration/utils/Visualiser.h>
 #include <sdf_mp_integration/ResultsRecorder.h>
 
 
@@ -92,6 +93,7 @@ class PlanningServer{
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> base_traj_ac_ ;
 
       ResultsRecorder results_recorder_;
+      HSRVisualiser dh_vis_;
 
       int arm_dof_ = 5;
 

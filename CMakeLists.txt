@@ -74,7 +74,8 @@ add_library(${PROJECT_NAME}_lib
   src/ResultsRecorder.cpp
   src/utils/timing.cpp
   src/utils/traj_utils.cpp
-  )
+  src/utils/Visualiser.cpp
+)
 
 add_message_files(
   FILES
@@ -134,6 +135,7 @@ src/GenerateArm.cpp
 src/ResultsRecorder.cpp
 src/utils/timing.cpp
 src/utils/traj_utils.cpp
+src/utils/Visualiser.cpp
 )
 
 target_link_libraries(planning_server_node 
