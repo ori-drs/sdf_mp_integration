@@ -71,6 +71,7 @@ add_library(${PROJECT_NAME}_lib
   src/GraphMaintainer.cpp
   src/SetHSRConf.cpp
   src/GenerateArm.cpp
+  src/ResultsRecorder.cpp
   src/utils/timing.cpp
   src/utils/traj_utils.cpp
   )
@@ -130,9 +131,9 @@ src/PlanningServer.cpp
 src/GraphMaintainer.cpp
 src/SetHSRConf.cpp
 src/GenerateArm.cpp
+src/ResultsRecorder.cpp
 src/utils/timing.cpp
 src/utils/traj_utils.cpp
-
 )
 
 target_link_libraries(planning_server_node 

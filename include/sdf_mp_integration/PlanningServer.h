@@ -60,6 +60,7 @@
 
 #include <sdf_mp_integration/utils/timing.h>
 #include <sdf_mp_integration/utils/traj_utils.h>
+#include <sdf_mp_integration/ResultsRecorder.h>
 
 
 // To execute base commands on hsr
