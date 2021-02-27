@@ -22,6 +22,8 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
     arm_task_ = false;
     full_task_ = false;
 
+    results_recorder_ = ResultsRecorder("/home/mark/iros2021", "");
+
     // Subscriptions
     base_goal_sub_ = node_.subscribe(base_goal_sub_topic_, 10, &PlanningServer::baseGoalCallback, this);
     arm_goal_sub_ = node_.subscribe(arm_goal_sub_topic_, 10, &PlanningServer::armGoalCallback, this);
@@ -377,7 +379,16 @@ void sdf_mp_integration::PlanningServer::replan(){
     // Calculate which index variable node we're at
     ros::WallTime current_t = ros::WallTime::now();
     ros::WallDuration dur = current_t - begin_t_;
-    
+    task_dur_ = current_t - task_callback_start_t_;
+
+
+    gpmp2::Pose2Vector start_pose;
+    gtsam::Vector start_vel(8);
+    this->getCurrentPose(start_pose, start_vel);
+    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
+
+    results_recorder_.recordActualTrajUpdate(task_dur_.toSec(), start_pose);
+
     // If less than 1s left, finish
     if (dur.toSec() >= setting_.total_time - 1)
     {
@@ -400,10 +411,7 @@ void sdf_mp_integration::PlanningServer::replan(){
 
     // Create new graph from scratch
 
-    gpmp2::Pose2Vector start_pose;
-    gtsam::Vector start_vel(8);
-    this->getCurrentPose(start_pose, start_vel);
-    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
+
 
     double old_delta_t = delta_t_;
     double old_time_steps = total_time_step_;
@@ -485,6 +493,8 @@ void sdf_mp_integration::PlanningServer::replan(){
   } else{
     replan_timer_.stop();
     std::cout << "Finished re-planning - goal reached!" << std::endl;
+    results_recorder_.saveResults();
+    std::cout << "Results saved!" << std::endl;
     look(1.0, 0, 0.0, "base_footprint");
   }
 
@@ -527,6 +537,8 @@ void sdf_mp_integration::PlanningServer::estimateSettings(const gpmp2::Pose2Vect
 
 void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 
+    task_callback_start_t_ = ros::WallTime::now();
+
     base_task_ = true;
     arm_task_ = false;
     full_task_ = false;
@@ -538,6 +550,7 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     gpmp2::Pose2Vector start_pose;
     gtsam::Vector start_vel(8);
     this->getCurrentPose(start_pose, start_vel);
+    results_recorder_.recordActualTrajUpdate(0, start_pose);
 
     // Get goal pose
     gtsam::Vector end_conf = sdf_mp_integration::SetHSRConf("go");
@@ -575,6 +588,7 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
 
       int iters;
       traj_res_ = this->optimize(init_values, last_traj_error, iters);
+      results_recorder_.recordTrajUpdate(0.0, total_time_step_, traj_res_);
       // last_traj_error = graph_.error(traj_res_);
       // std::cout << "Initial iters: " << iters << std::endl;
       // sdf_mp_integration::Timer costsPrinterTimer("costsPrinterTimer");
@@ -610,6 +624,8 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
 
 void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg){
 
+    task_callback_start_t_ = ros::WallTime::now();
+
     base_task_ = false;
     arm_task_ = true;
     full_task_ = false;
@@ -617,6 +633,7 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
     gpmp2::Pose2Vector start_pose;
     gtsam::Vector start_vel(8);
     this->getCurrentPose(start_pose, start_vel);
+    results_recorder_.recordActualTrajUpdate(0, start_pose);
 
     // Get goal pose
     gtsam::Vector end_conf(arm_dof_);
@@ -655,7 +672,8 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
       // Start timer and execute
       begin_t_ = ros::WallTime::now();
       executeArmPlan(traj_res_, delta_t_, total_time_step_);
-      
+      results_recorder_.recordTrajUpdate(0.0, total_time_step_, traj_res_);
+
       std::cout << "Executing. Now starting replan timer for every: " << round(1.0/0.2) << "Hz" << std::endl;
       replan_timer_ = node_.createTimer(ros::Duration(0.2), &sdf_mp_integration::PlanningServer::replan, this);
     }
@@ -669,6 +687,7 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
 
 void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg){
 
+    task_callback_start_t_ = ros::WallTime::now();
     base_task_ = false;
     arm_task_ = false;
     full_task_ = true;
@@ -679,6 +698,7 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
     gpmp2::Pose2Vector start_pose;
     gtsam::Vector start_vel(8);
     this->getCurrentPose(start_pose, start_vel);
+    results_recorder_.recordActualTrajUpdate(0, start_pose);
 
 
     // Get goal pose
@@ -729,6 +749,7 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
       begin_t_ = ros::WallTime::now();
       executeFullPlan(traj_res_, delta_t_, total_time_step_);
       visualiseBasePlan(traj_res_, total_time_step_);
+      results_recorder_.recordTrajUpdate(0.0, total_time_step_, traj_res_);
 
       std::cout << "Executing. Now starting replan timer for every: " << round(1.0/0.2) << "Hz" << std::endl;
       replan_timer_ = node_.createTimer(ros::Duration(0.2), &sdf_mp_integration::PlanningServer::replan, this);

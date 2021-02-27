@@ -91,6 +91,8 @@ class PlanningServer{
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> execute_arm_ac_ ;
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> base_traj_ac_ ;
 
+      ResultsRecorder results_recorder_;
+
       int arm_dof_ = 5;
 
       int arm_lift_joint_ind = 1;  
@@ -124,7 +126,9 @@ class PlanningServer{
       gtsam::NonlinearFactorGraph graph_;
 
       gpmp2::Pose2Vector goal_state_;
-      ros::WallTime begin_t_;
+      ros::WallTime begin_t_, task_callback_start_t_;
+      ros::WallDuration task_dur_; 
+      
       ros::Timer replan_timer_;
       std::vector<gtsam::Values> trajectory_evolution_;
       int last_idx_updated_;

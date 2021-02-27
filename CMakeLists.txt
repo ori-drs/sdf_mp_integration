@@ -184,7 +184,9 @@ ${roscpp_LIBRARIES}
 
 add_dependencies(arm_goal_test_node sdf_mp_integration_generate_messages_cpp)
 
-catkin_install_python(PROGRAMS scripts/plotting_node.py scripts/hsr_python_controller.py
+catkin_install_python(PROGRAMS  scripts/plotting_node.py 
+                                scripts/hsr_python_controller.py
+                                scripts/moving_obstacle_node.py
                       DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 # Install directory

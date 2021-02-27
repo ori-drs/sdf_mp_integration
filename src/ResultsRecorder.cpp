@@ -12,6 +12,10 @@ void ResultsRecorder::recordTrajUpdate(const double t, const size_t num_keys, co
     traj_updates_.push_back(std::tuple<double, size_t, gtsam::Values>(t, num_keys, trajectory));
 };
 
+void ResultsRecorder::recordActualTrajUpdate(const double t, const gpmp2::Pose2Vector& current_pose){
+    actual_traj_.push_back(std::tuple<double, gpmp2::Pose2Vector>(t, current_pose));
+};
+
 const void ResultsRecorder::createSaveDir(){
         if (mkdir(foldername_.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
         {
@@ -28,7 +32,8 @@ const void ResultsRecorder::createSaveDir(){
 const void ResultsRecorder::saveResults(){
     
     std::ofstream savefile;
-    savefile.open(foldername_ + "/" + file_prefix_ + "planning_results.csv");
+    savefile.open(foldername_ + "/" + "planning_results.csv");
+    // savefile.open(foldername_ + "/" + file_prefix_ + "planning_results.csv");
     
     for (size_t i = 0; i < traj_updates_.size(); i++)
     {
@@ -48,13 +53,13 @@ const void ResultsRecorder::saveResults(){
             savefile << "," << pos.pose().theta();
 
             // For each dof get position
-            for (size_t j = 0; i < dof_; i++)
+            for (size_t j = 0; j < dof_; j++)
             {
                 savefile << "," << pos.configuration()[j];
             }
 
             // For each dof get velocity
-            for (size_t j = 0; i < dof_ + 3; i++)
+            for (size_t j = 0; j < dof_ + 3; j++)
             {
                 savefile << "," << vel(j);
             }    
@@ -63,5 +68,39 @@ const void ResultsRecorder::saveResults(){
             savefile << "\n";    
         }   
     }
+    
+
+    // Now add the actual trajectory
+
+    for (size_t i = 0; i < actual_traj_.size(); i++)
+    {
+        gpmp2::Pose2Vector pos = std::get<1>(actual_traj_[i]);
+        double t_step = std::get<0>(actual_traj_[i]);
+        
+        savefile << 1000 << "," << actual_traj_.size() << "," << t_step;
+
+        savefile << "," << pos.pose().x();
+        savefile << "," << pos.pose().y();
+        savefile << "," << pos.pose().theta();
+
+        // For each dof get position
+        for (size_t j = 0; j < dof_; j++)
+        {
+            savefile << "," << pos.configuration()[j];
+        }
+
+        // For each dof get velocity
+        for (size_t j = 0; j < dof_ + 3; j++)
+        {
+            // savefile << "," << vel(j);
+            savefile << "," << 0;
+        }   
+
+        // New line in csv
+        savefile << "\n";    
+
+    }
+
+    std::cout << "Results saved to: " << foldername_ + "/" + "planning_results.csv" << std::endl;
 
 };

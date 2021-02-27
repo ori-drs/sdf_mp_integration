@@ -17,6 +17,7 @@ class ResultsRecorder
         size_t dof_;
 
         std::vector<std::tuple<double, size_t, gtsam::Values>> traj_updates_;
+        std::vector<std::tuple<double, gpmp2::Pose2Vector>> actual_traj_;
 
 
     public:
@@ -26,6 +27,8 @@ class ResultsRecorder
         virtual ~ResultsRecorder(){};
 
         void recordTrajUpdate(const double t, const size_t num_keys, const gtsam::Values& trajectory);
+        
+        void recordActualTrajUpdate(const double t, const gpmp2::Pose2Vector& current_pose);
 
         const void saveResults();
 
