@@ -10,7 +10,7 @@
 
 namespace sdf_mp_integration {
 
-    gtsam::Values refitPose2MobileArmTraj(const gtsam::Values& input_traj,
+    gtsam::Values refitPose2MobileArmTraj(const gtsam::Values& input_traj, const gpmp2::Pose2Vector& start_pose, const gtsam::Vector& start_vel,
         const gtsam::SharedNoiseModel Qc_model, const double old_delta_t, const double new_delta_t, const size_t old_time_steps, const size_t new_time_steps, 
         const size_t start_index);
 

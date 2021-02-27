@@ -434,7 +434,7 @@ void sdf_mp_integration::PlanningServer::replan(){
     // std::cout << "refitTimer" << std::endl;
 
     sdf_mp_integration::Timer refitTimer("refitTimer");
-    gtsam::Values refit_values = sdf_mp_integration::refitPose2MobileArmTraj(traj_res_, setting_.Qc_model, old_delta_t, delta_t_, old_time_steps, total_time_step_, idx);
+    gtsam::Values refit_values = sdf_mp_integration::refitPose2MobileArmTraj(traj_res_, start_pose, start_vel, setting_.Qc_model, old_delta_t, delta_t_, old_time_steps, total_time_step_, idx);
     refitTimer.Stop();
     
     // std::cout << "initOptimiseTimer" << std::endl;
