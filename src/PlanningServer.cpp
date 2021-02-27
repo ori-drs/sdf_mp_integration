@@ -857,17 +857,21 @@ bool sdf_mp_integration::PlanningServer::hasExecutionStopped() const{
 
   if(base_task_){
     return (base_traj_ac_.getState() == actionlib::SimpleClientGoalState::ABORTED) || 
-            (base_traj_ac_.getState() == actionlib::SimpleClientGoalState::REJECTED);
+            (base_traj_ac_.getState() == actionlib::SimpleClientGoalState::REJECTED) || 
+            (base_traj_ac_.getState() == actionlib::SimpleClientGoalState::PREEMPTED);
   }
   else if(arm_task_){
     return (execute_arm_ac_.getState() == actionlib::SimpleClientGoalState::ABORTED) || 
-            (execute_arm_ac_.getState() == actionlib::SimpleClientGoalState::REJECTED);
+            (execute_arm_ac_.getState() == actionlib::SimpleClientGoalState::REJECTED) || 
+            (execute_arm_ac_.getState() == actionlib::SimpleClientGoalState::PREEMPTED);
   }
   else if(full_task_){
     return (base_traj_ac_.getState() == actionlib::SimpleClientGoalState::ABORTED) || 
             (base_traj_ac_.getState() == actionlib::SimpleClientGoalState::REJECTED) || 
+            (base_traj_ac_.getState() == actionlib::SimpleClientGoalState::PREEMPTED) || 
             (execute_arm_ac_.getState() == actionlib::SimpleClientGoalState::ABORTED) || 
-            (execute_arm_ac_.getState() == actionlib::SimpleClientGoalState::REJECTED);
+            (execute_arm_ac_.getState() == actionlib::SimpleClientGoalState::REJECTED) || 
+            (execute_arm_ac_.getState() == actionlib::SimpleClientGoalState::PREEMPTED);
   }
 
 }
