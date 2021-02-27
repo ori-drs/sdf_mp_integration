@@ -20,7 +20,8 @@ class ResultsRecorder
 
 
     public:
-        ResultsRecorder(const std::string folder, const std::string file_prefix, const size_t total_time_steps);
+        ResultsRecorder(){};
+        ResultsRecorder(const std::string folder, const std::string file_prefix);
 
         virtual ~ResultsRecorder(){};
 

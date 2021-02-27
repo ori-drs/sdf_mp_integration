@@ -1,6 +1,6 @@
 #include <sdf_mp_integration/ResultsRecorder.h>
 
-ResultsRecorder::ResultsRecorder(const std::string folder, const std::string file_prefix, const size_t total_time_steps)
+ResultsRecorder::ResultsRecorder(const std::string folder, const std::string file_prefix)
 {
     foldername_ = folder;
     file_prefix_ = file_prefix;
