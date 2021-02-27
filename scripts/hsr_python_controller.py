@@ -11,6 +11,7 @@ class HSRPythonController():
     def __init__(self):
         self.robot = Robot()
         self.whole_body = self.robot.get("whole_body")
+        self.omni_base = self.robot.get("omni_base")
         self.gaze_sub = rospy.Subscriber("hsr_gaze_update", HeadDirection, self.look)
         self.move_sub = rospy.Subscriber("hsr_move_to_go", String, self.move_to_go)
         rospy.loginfo("hsr_python_controller ready...")
@@ -23,8 +24,10 @@ class HSRPythonController():
 
     def move_to_go(self, msg):   
         rospy.loginfo("Moving hsr to go position...")
+        current_pos = self.omni_base.pose
         try:
             self.whole_body.move_to_go()
+            self.omni_base.go_abs(current_pos[0], current_pos[1], current_pos[2])
         except Exception:
             rospy.loginfo("Error encountered in moving to go")
 
