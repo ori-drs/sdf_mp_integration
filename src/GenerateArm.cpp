@@ -106,9 +106,9 @@ gpmp2::Pose2MobileVetLinArmModel GenerateHSRArm(const gtsam::Point3 &base_pos){
 
 
     // New attempt 1) roll 2) flex, 3) second roll
-    alpha << 1.57,          -1.570,             1.57,                   0;
-    a     << 0,             0 ,                 0,                   0;
-    d     << 0,             -0.345,             0,                   0;
+    alpha << -1.57,          1.570,             -1.57,                   0;
+    a     << 0,             0.005 ,                 0,                   0;
+    d     << 0,             0.345,             0,                   0;
     theta << 0,             0,                  0,                   0;
     
     gpmp2::Arm abs_arm = gpmp2::Arm(dof, a, alpha, d, base_pose, theta);
@@ -168,27 +168,26 @@ gpmp2::Pose2MobileVetLinArmModel GenerateHSRArm(const gtsam::Point3 &base_pos){
         gpmp2::BodySphere(1, 0.270000, gtsam::Point3(-0.04000, 0.000000, 0.530000)),
         
         // First arm section (just flex)
-        gpmp2::BodySphere(2, 0.110000, gtsam::Point3(0.010000, 0.010000, 0.00000)),
-        gpmp2::BodySphere(2, 0.110000, gtsam::Point3(0.010000, 0.010000, -0.12000)),
-        gpmp2::BodySphere(2, 0.110000, gtsam::Point3(0.010000, 0.010000, -0.220000)),
+        gpmp2::BodySphere(2, 0.110000, gtsam::Point3(0.000000, 0.000000, 0.000000)),
+        gpmp2::BodySphere(2, 0.110000, gtsam::Point3(0.000000, 0.000000, 0.12000)),
+        gpmp2::BodySphere(2, 0.110000, gtsam::Point3(0.000000, 0.000000, 0.220000)),
 
         // Second arm section - twists with roll (axis is at base of first section though)
         gpmp2::BodySphere(3, 0.10000, gtsam::Point3(0.01000, 0.00000, 0.0000000)),
         gpmp2::BodySphere(3, 0.10000, gtsam::Point3(0.01000, -0.07000, 0.0000000)),
 
         // Wrist
-        gpmp2::BodySphere(5, 0.0200, gtsam::Point3(0.00000, 0.000000, 0.000000)),
-        gpmp2::BodySphere(5, 0.0900, gtsam::Point3(0.000000, 0.000000, -0.10000)),
-        gpmp2::BodySphere(5, 0.0400, gtsam::Point3(0.000000, 0.04000, -0.150000)),
-        gpmp2::BodySphere(5, 0.0400, gtsam::Point3(0.000000, -0.04000, -0.150000)),
-        gpmp2::BodySphere(5, 0.0400, gtsam::Point3(0.000000, 0.04000, -0.190000)),
-        gpmp2::BodySphere(5, 0.0400, gtsam::Point3(0.000000, -0.04000, -0.190000))
+        gpmp2::BodySphere(5, 0.0900, gtsam::Point3(-0.010000, 0.000000, 0.10000)),
+        gpmp2::BodySphere(5, 0.0400, gtsam::Point3(0.000000, 0.04000, 0.150000)),
+        gpmp2::BodySphere(5, 0.0400, gtsam::Point3(0.000000, -0.04000, 0.150000)),
+        gpmp2::BodySphere(5, 0.0400, gtsam::Point3(0.000000, 0.04000, 0.190000)),
+        gpmp2::BodySphere(5, 0.0400, gtsam::Point3(0.000000, -0.04000, 0.190000))
     };
 
     gtsam::Pose3 base_T_torso = gtsam::Pose3(gtsam::Rot3::RzRyRx(0, 0, 0), gtsam::Point3(0, 0, 0.34));
 
     // Note that this gives the flex joint position correctly (rather than using the DH params)
-    gtsam::Pose3 torso_T_arm = gtsam::Pose3(gtsam::Rot3::RzRyRx(1.57, 0, 3.14), gtsam::Point3(0.151, 0.078, 0));
+    gtsam::Pose3 torso_T_arm = gtsam::Pose3(gtsam::Rot3::RzRyRx(1.57, 0, 0), gtsam::Point3(0.141, 0.078, 0));
 
     // abstract mobile arm
     gpmp2::Pose2MobileVetLinArm marm(abs_arm, base_T_torso, torso_T_arm, false);

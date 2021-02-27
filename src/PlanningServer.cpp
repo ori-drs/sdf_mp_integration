@@ -172,16 +172,16 @@ void sdf_mp_integration::PlanningServer::reinitTrajectory(gtsam::Values &traj){
 void sdf_mp_integration::PlanningServer::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
 {
     joint_state_[0] = msg->position[arm_lift_joint_ind];
-    joint_state_[1] = -msg->position[arm_flex_joint_ind];
-    joint_state_[2] = -msg->position[arm_roll_joint_ind];
-    joint_state_[3] = -msg->position[wrist_flex_joint_ind];
-    joint_state_[4] = -msg->position[wrist_roll_joint_ind];
+    joint_state_[1] = msg->position[arm_flex_joint_ind];
+    joint_state_[2] = msg->position[arm_roll_joint_ind];
+    joint_state_[3] = msg->position[wrist_flex_joint_ind];
+    joint_state_[4] = msg->position[wrist_roll_joint_ind];
 
     joint_v_state_[0] = msg->velocity[arm_lift_joint_ind];
-    joint_v_state_[1] = -msg->velocity[arm_flex_joint_ind];
-    joint_v_state_[2] = -msg->velocity[arm_roll_joint_ind];
-    joint_v_state_[3] = -msg->velocity[wrist_flex_joint_ind];
-    joint_v_state_[4] = -msg->velocity[wrist_roll_joint_ind];
+    joint_v_state_[1] = msg->velocity[arm_flex_joint_ind];
+    joint_v_state_[2] = msg->velocity[arm_roll_joint_ind];
+    joint_v_state_[3] = msg->velocity[wrist_flex_joint_ind];
+    joint_v_state_[4] = msg->velocity[wrist_roll_joint_ind];
 };
 
 void sdf_mp_integration::PlanningServer::odomStateCallback(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg)
@@ -237,8 +237,8 @@ void sdf_mp_integration::PlanningServer::createSettings(float total_time, int to
     gtsam::Vector joint_pos_limits_down(arm_dof_+3);
     gtsam::Vector pos_limit_thresh(arm_dof_+3);
 
-    joint_pos_limits_down << -100, -100, -100,  0,     -2.617,   -1.919,   -1.919,   -1.919;
-    joint_pos_limits_up   << 100,   100,  100,  0.69,  0,        3.665,    1.221,    3.665;
+    joint_pos_limits_down << -100, -100, -100,  0,     0,   -3.665,   -1.221,   -3.665;
+    joint_pos_limits_up   << 100,   100,  100,  0.69,  2.617,        1.919,    1.919,    1.919;
     pos_limit_thresh = 0.001 * gtsam::Vector::Ones(arm_dof_+3);
 
 
@@ -1035,19 +1035,6 @@ void sdf_mp_integration::PlanningServer::executeArmPlan(const gtsam::Values& pla
         // pt.velocities.push_back(v[j+3]);
       }
 
-      // TODO - This is needed because the flexjoint is on wrong way
-      pt.positions[1] = - pt.positions[1];
-      // pt.velocities[1] = - pt.velocities[1];
-
-      pt.positions[2] = - pt.positions[2];
-      // pt.velocities[2] = - pt.velocities[2];
-
-      pt.positions[3] = - pt.positions[3];
-      // pt.velocities[3] = - pt.velocities[3];
-
-      pt.positions[4] = - pt.positions[4];
-      // pt.velocities[4] = - pt.velocities[4];
-
       arm_goal.trajectory.points[ctr] = pt;
 
       ctr+=1;
@@ -1106,18 +1093,6 @@ void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& pl
         // pt.velocities.push_back(vel[j+3]);
       }
 
-      // TODO - This is needed because the flexjoint is on wrong way
-      arm_pt.positions[1] = - arm_pt.positions[1];
-      // arm_pt.velocities[1] = - arm_pt.velocities[1];
-
-      arm_pt.positions[2] = - arm_pt.positions[2];
-      // arm_pt.velocities[2] = - arm_pt.velocities[2];
-
-      arm_pt.positions[3] = - arm_pt.positions[3];
-      // arm_pt.velocities[3] = - arm_pt.velocities[3];
-
-      arm_pt.positions[4] = - arm_pt.positions[4];
-      // arm_pt.velocities[4] = - arm_pt.velocities[4];
 
       arm_goal.trajectory.points[ctr] = arm_pt;
       path_goal.trajectory.points[ctr] = pt;
