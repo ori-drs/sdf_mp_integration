@@ -223,7 +223,7 @@ void sdf_mp_integration::PlanningServer::odomStateCallback(const control_msgs::J
 void sdf_mp_integration::PlanningServer::createSettings(float total_time, int total_time_step){
     total_time_step_ = total_time_step;
     total_time_ = total_time;
-    node_.param<float>("epsilon", epsilon_, 0.35);
+    node_.param<float>("epsilon", epsilon_, 0.5);
     // node_.param<float>("cost_sigma", cost_sigma_, 0.2);
     // node_.param<float>("epsilon", epsilon_, 0.2);
     node_.param<float>("cost_sigma", cost_sigma_, 0.05);
@@ -398,15 +398,15 @@ void sdf_mp_integration::PlanningServer::replan(){
     gtsam::Vector start_vel(8);
     this->getCurrentPose(start_pose, start_vel);
     gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
-    dh_vis_.visualiseRobot(start_pose, 1);
+    // dh_vis_.visualiseRobot(start_pose, 1);
 
     results_recorder_.recordActualTrajUpdate(task_dur_.toSec(), start_pose);
 
     // If less than 1s left, finish
-    if (dur.toSec() >= setting_.total_time - 1)
-    {
-      return;
-    }
+    // if (dur.toSec() >= setting_.total_time - 1)
+    // {
+    //   return;
+    // }
 
     double float_idx = dur.toSec()/delta_t_;
     int idx = round(float_idx);
@@ -416,7 +416,7 @@ void sdf_mp_integration::PlanningServer::replan(){
     // std::cout << "Last error: " << last_traj_error << "\t New error: " << traj_error << std::endl;
     // if(last_traj_error < 1.5 * traj_error && last_traj_error >= traj_error && traj_error < error_theshold && !collisionCheck(traj_res_)){
     if(last_traj_error < 1.5 * traj_error && last_traj_error >= traj_error && !collisionCheck(traj_res_) && !hasExecutionStopped()){
-      std::cout << "Using same trajectory."<< std::endl;
+      // std::cout << "Using same trajectory."<< std::endl;
       return;
     }
 
@@ -432,13 +432,13 @@ void sdf_mp_integration::PlanningServer::replan(){
     estimateSettings(start_pose, goal_state_);
 
     // New graph
-    sdf_mp_integration::Timer graphTimer("GraphConstruction");
+    // sdf_mp_integration::Timer graphTimer("GraphConstruction");
 
     constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
                                       sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
                                       sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
                                       gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, goal_state_, end_vel);
-    graphTimer.Stop();
+    // graphTimer.Stop();
 
 
     // Reset timings
@@ -454,9 +454,9 @@ void sdf_mp_integration::PlanningServer::replan(){
 
     // std::cout << "refitTimer" << std::endl;
 
-    sdf_mp_integration::Timer refitTimer("refitTimer");
+    // sdf_mp_integration::Timer refitTimer("refitTimer");
     gtsam::Values refit_values = sdf_mp_integration::refitPose2MobileArmTraj(traj_res_, start_pose, start_vel, setting_.Qc_model, old_delta_t, delta_t_, old_time_steps, total_time_step_, idx);
-    refitTimer.Stop();
+    // refitTimer.Stop();
     
     // std::cout << "initOptimiseTimer" << std::endl;
     // sdf_mp_integration::Timer initOptimiseTimer("initOptimiseTimer");
@@ -465,18 +465,18 @@ void sdf_mp_integration::PlanningServer::replan(){
     // std::cout << "init iters: " << iters << std::endl;
 
     // std::cout << "optimiseTimer" << std::endl;
-    sdf_mp_integration::Timer optimiseTimer("optimiseTimer");
+    // sdf_mp_integration::Timer optimiseTimer("optimiseTimer");
     traj_res_ = this->optimize(refit_values, traj_error, iters);
-    optimiseTimer.Stop();
+    // optimiseTimer.Stop();
     // std::cout << "Refit iters: " << iters << std::endl;
 
     if(collisionCheck(traj_res_)){
-      std::cout << "Planned trajectory is in collision. Cancelling all current goals." << std::endl;
+      // std::cout << "Planned trajectory is in collision. Cancelling all current goals." << std::endl;
       cancelAllGoals();
       return;
     }
 
-    sdf_mp_integration::Timer interpVisualiseTimer("interpVisualiseTimer");
+    // sdf_mp_integration::Timer interpVisualiseTimer("interpVisualiseTimer");
     // size_t interp_steps = 2;
     // gtsam::Values interp_traj = gpmp2::interpolatePose2MobileArmTraj(refit_values, setting_.Qc_model, delta_t_, interp_steps, 0, total_time_step_-1);
     // visualiseInitialBasePlan(interp_traj, (total_time_step_-1)*(interp_steps+1) + 1);
@@ -491,9 +491,10 @@ void sdf_mp_integration::PlanningServer::replan(){
     // Start timer and execute
     last_traj_error = traj_error;
 
-    publishPlanMsg(traj_res_);
+    // publishPlanMsg(traj_res_);
     // std::cout << "Executing trajectory..." << std::endl;
     executeTrajectory(traj_res_, 0, 0.5);
+    results_recorder_.recordTrajUpdate(task_dur_.toSec(), total_time_step_, traj_res_);
 
     // std::cout << "Interpolating and visualising..." << std::endl;
     // sdf_mp_integration::Timer interpVisualiseTimer2("interpVisualiseTimer2");
@@ -515,10 +516,10 @@ void sdf_mp_integration::PlanningServer::replan(){
 
 void sdf_mp_integration::PlanningServer::replan(const ros::TimerEvent& /*event*/){
   replan_mtx.lock();
-  sdf_mp_integration::Timer replanTimer("replan");
+  // sdf_mp_integration::Timer replanTimer("replan");
   replan();
-  replanTimer.Stop();
-  sdf_mp_integration::Timing::Print(std::cout);
+  // replanTimer.Stop();
+  // sdf_mp_integration::Timing::Print(std::cout);
   replan_mtx.unlock();
 }
 
@@ -707,6 +708,7 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
 
     // Look at the target location
     look(msg->base.pose.position.x, msg->base.pose.position.y, 0.0, "odom");
+    // look(msg->base.pose.position.x, msg->base.pose.position.y, 0.5, "odom");
 
     gpmp2::Pose2Vector start_pose;
     gtsam::Vector start_vel(8);
@@ -856,8 +858,6 @@ void sdf_mp_integration::PlanningServer::visualiseBasePlan(const gtsam::Values& 
     nav_msgs::Path path;
     path.header.frame_id = "odom";
 
-    // std::cout << "The poses are:" << std::endl;
-
     for (size_t i = 0; i < num_keys; i++)
     {
       gpmp2::Pose2Vector pose = plan.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', i));
@@ -878,7 +878,6 @@ void sdf_mp_integration::PlanningServer::visualiseBasePlan(const gtsam::Values& 
 
       path.poses.push_back(pose_msg);
 
-      // std::cout << "\t" << i << ": " << pose.pose().x() << "\t" << pose.pose().y() << std::endl;
     }
     
     path_pub_.publish(path);
@@ -954,9 +953,9 @@ void sdf_mp_integration::PlanningServer::executeTrajectory(const gtsam::Values& 
 
   size_t interp_steps = 2;
 
-  sdf_mp_integration::Timer interpExecutionTimer("interpExecutionTimer");
+  // sdf_mp_integration::Timer interpExecutionTimer("interpExecutionTimer");
   gtsam::Values interp_traj = gpmp2::interpolatePose2MobileArmTraj(plan, setting_.Qc_model, delta_t_, interp_steps, 0, total_time_step_-1);
-  interpExecutionTimer.Stop();
+  // interpExecutionTimer.Stop();
  
   size_t num_keys = (total_time_step_-1)*(interp_steps+1) + 1;
   size_t start_ind = current_ind*(interp_steps+1);
@@ -1070,7 +1069,7 @@ void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& pl
     path_goal.trajectory.points.resize(num_keys - 1 - current_ind - delay_inds);
     arm_goal.trajectory.points.resize(num_keys - 1 - current_ind - delay_inds);
 
-    std::cout << "Trajectories resized..." << std::endl;
+    // std::cout << "Trajectories resized..." << std::endl;
 
     size_t ctr = 0;
     for (size_t i = current_ind + delay_inds + 1; i < num_keys; i++)
@@ -1104,7 +1103,7 @@ void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& pl
       ctr+=1;
     }
 
-    std::cout << "Sending goals" << std::endl;
+    // std::cout << "Sending goals" << std::endl;
     execute_arm_ac_.sendGoal(arm_goal);
     base_traj_ac_.sendGoal(path_goal);
 
@@ -1288,7 +1287,7 @@ void sdf_mp_integration::PlanningServer::constructGraph(
   
   }
 
-  std::cout << "Graph constructed successfully" << std::endl;
+  // std::cout << "Graph constructed successfully" << std::endl;
 
 }
 
