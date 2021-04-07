@@ -89,22 +89,6 @@ gpmp2::Pose2MobileVetLinArmModel GenerateHSRArm(const gtsam::Point3 &base_pos){
     gtsam::Vector theta(dof);
     gtsam::Pose3 base_pose = gtsam::Pose3(gtsam::Rot3(), base_pos);
 
-
-    // Kind of works
-    //       To get roll,  , To get flex         to get second roll,         TO DO
-    // alpha << -1.57,         1.57,             -1.57,           0;
-    // a     << 0,             0,                0,                0.0;
-    // d     << 0,             0.345,            0.0,              0.1;
-    // theta << -1.5708,       0,                0,                0;
-    
-    // alpha << 0,         1.57,          -1.57,                   1.57;
-    // a     << 0,             0.2 ,             0,                    0;
-    // d     << 0,             0,              0.345,                  0;
-    // theta << 0,             0,          0,                      0;
-    // theta << 0,             -1.57,          0,                      0;
-
-
-
     // New attempt 1) roll 2) flex, 3) second roll
     alpha << -1.57,          1.570,             -1.57,                   0;
     a     << 0,             0.005 ,                 0,                   0;

@@ -336,14 +336,14 @@ bool sdf_mp_integration::PlanningServer::isTaskComplete(){
     );
   }
   else{
-    // std::cout << "xerr: " << abs(odom_state_[0] - goal_state_.pose().x())
-    //           << "yerr: " <<  abs(odom_state_[1] - goal_state_.pose().y())
-    //           << "terr: " <<  abs(odom_state_[2] - goal_state_.pose().theta()) 
-    //           << "1err: " <<  abs(joint_state_[0] - goal_state_.configuration()[0])
-    //           << "2err: " <<  abs(joint_state_[1] - goal_state_.configuration()[1])
-    //           << "3err: " <<  abs(joint_state_[2] - goal_state_.configuration()[2])
-    //           << "4err: " <<  abs(joint_state_[3] - goal_state_.configuration()[3]) 
-    //           << "5err: " <<  abs(joint_state_[4] - goal_state_.configuration()[4]) << std::endl;
+    std::cout << "xerr: " << abs(odom_state_[0] - goal_state_.pose().x())
+              << "yerr: " <<  abs(odom_state_[1] - goal_state_.pose().y())
+              << "terr: " <<  abs(odom_state_[2] - goal_state_.pose().theta()) 
+              << "1err: " <<  abs(joint_state_[0] - goal_state_.configuration()[0])
+              << "2err: " <<  abs(joint_state_[1] - goal_state_.configuration()[1])
+              << "3err: " <<  abs(joint_state_[2] - goal_state_.configuration()[2])
+              << "4err: " <<  abs(joint_state_[3] - goal_state_.configuration()[3]) 
+              << "5err: " <<  abs(joint_state_[4] - goal_state_.configuration()[4]) << std::endl;
 
     return (abs(odom_state_[0] - goal_state_.pose().x()) <= 0.05 &&
     abs(odom_state_[1] - goal_state_.pose().y()) <= 0.05 &&
@@ -516,10 +516,10 @@ void sdf_mp_integration::PlanningServer::replan(){
 
 void sdf_mp_integration::PlanningServer::replan(const ros::TimerEvent& /*event*/){
   replan_mtx.lock();
-  // sdf_mp_integration::Timer replanTimer("replan");
+  sdf_mp_integration::Timer replanTimer("replan");
   replan();
-  // replanTimer.Stop();
-  // sdf_mp_integration::Timing::Print(std::cout);
+  replanTimer.Stop();
+  sdf_mp_integration::Timing::Print(std::cout);
   replan_mtx.unlock();
 }
 
