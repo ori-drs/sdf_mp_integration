@@ -95,6 +95,8 @@ class PlanningServer{
       ResultsRecorder results_recorder_;
       HSRVisualiser dh_vis_;
 
+      GPUVoxelsPtr gpu_voxels_ptr_ = NULL; 
+
       int arm_dof_ = 5;
 
       int arm_lift_joint_ind = 1;  
@@ -102,6 +104,9 @@ class PlanningServer{
       int arm_roll_joint_ind = 2;  
       int wrist_flex_joint_ind = 11;  
       int wrist_roll_joint_ind = 12;  
+
+      int pan_joint_ind = 9;
+      int tilt_joint_ind = 10;
 
       int odom_x_ind = 0;
       int odom_y_ind = 1;
@@ -111,6 +116,8 @@ class PlanningServer{
 
       gtsam::Vector5 joint_state_, joint_v_state_;
       gtsam::Vector3 odom_state_, odom_v_state_;
+      
+      float head_state_[2] = {};
 
       gpmp2::Pose2MobileVetLinArmModel arm_;
       std::vector<ros::Time> base_time_buffer_;
@@ -180,7 +187,8 @@ class PlanningServer{
       void replan(const ros::TimerEvent& /*event*/);
       void replan();
 
-
+      void TestNBV();
+      void GetNBV(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind);
 
       //
       void moveToGo();

@@ -57,9 +57,8 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
     ros::Duration(1).sleep();
 
     // // Start the mapping
-    GPUVoxelsPtr gpu_voxels_ptr; 
-    gpu_voxels_ptr = new gpu_voxels_ros::GPUVoxelsHSRServer(node_);
-    sdf_handler_ = new sdf_mp_integration::SDFHandler<GPUVoxelsPtr>(gpu_voxels_ptr);
+    gpu_voxels_ptr_ = new gpu_voxels_ros::GPUVoxelsHSRServer(node_);
+    sdf_handler_ = new sdf_mp_integration::SDFHandler<GPUVoxelsPtr>(gpu_voxels_ptr_);
     std::cout << "PlanningServer ready..." << std::endl;
 
     // Pause for mapping to take effect
@@ -171,7 +170,6 @@ void sdf_mp_integration::PlanningServer::reinitTrajectory(gtsam::Values &traj){
 
 }
 
-// TODO - note the minus signs due to our DH model convention
 void sdf_mp_integration::PlanningServer::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
 {
     joint_state_[0] = msg->position[arm_lift_joint_ind];
@@ -185,6 +183,9 @@ void sdf_mp_integration::PlanningServer::jointStateCallback(const sensor_msgs::J
     joint_v_state_[2] = msg->velocity[arm_roll_joint_ind];
     joint_v_state_[3] = msg->velocity[wrist_flex_joint_ind];
     joint_v_state_[4] = msg->velocity[wrist_roll_joint_ind];
+
+    head_state_[0] = msg->position[pan_joint_ind];
+    head_state_[1] = msg->position[tilt_joint_ind];
 };
 
 void sdf_mp_integration::PlanningServer::odomStateCallback(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg)
@@ -386,7 +387,9 @@ void sdf_mp_integration::PlanningServer::replan(){
   
   if (!isTaskComplete())
   {
-    
+
+    // this->GetNBV(traj_res_, delta_t_, total_time_step_, 0);
+
     double traj_error, new_traj_error, reinit_traj_error, old_err_improvement, reinit_err_improvement;
     // Calculate which index variable node we're at
     ros::WallTime current_t = ros::WallTime::now();
@@ -519,7 +522,7 @@ void sdf_mp_integration::PlanningServer::replan(const ros::TimerEvent& /*event*/
   sdf_mp_integration::Timer replanTimer("replan");
   replan();
   replanTimer.Stop();
-  sdf_mp_integration::Timing::Print(std::cout);
+  // sdf_mp_integration::Timing::Print(std::cout);
   replan_mtx.unlock();
 }
 
@@ -550,6 +553,8 @@ void sdf_mp_integration::PlanningServer::estimateSettings(const gpmp2::Pose2Vect
 }
 
 void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
+
+    this->TestNBV();
 
     task_callback_start_t_ = ros::WallTime::now();
 
@@ -1108,6 +1113,63 @@ void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& pl
     base_traj_ac_.sendGoal(path_goal);
 
 };
+
+// TODO - fix this so that we dont manually have to changge the map dimensions
+void sdf_mp_integration::PlanningServer::TestNBV(){
+  std::cout << "sdf_mp_integration: Testing the NBV cone..." << std::endl;
+
+  std::vector<robot::JointValueMap> robot_joints_vec;
+  robot::JointValueMap joint_values;
+  joint_values["x_joint"] = odom_state_[0] + (0.5 * 448) * 0.025 ; 
+  joint_values["y_joint"] = odom_state_[1] + (0.5 * 448) * 0.025; 
+
+  joint_values["theta_joint"] = odom_state_[2]; 
+
+  joint_values["arm_lift_joint"] = joint_state_[0]; 
+  joint_values["arm_flex_joint"] = joint_state_[1]; 
+  joint_values["arm_roll_joint"] = joint_state_[2]; 
+  joint_values["wrist_flex_joint"] = joint_state_[3]; 
+  joint_values["wrist_roll_joint"] = joint_state_[4]; 
+
+  joint_values["head_pan_joint"] = head_state_[0]; 
+  joint_values["head_tilt_joint"] = head_state_[1]; 
+
+  robot_joints_vec.push_back(joint_values);
+
+  float nbv_joints[2] = {0,0};
+  gpu_voxels_ptr_->GetNBV(robot_joints_vec, nbv_joints);
+}
+
+void sdf_mp_integration::PlanningServer::GetNBV(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind){
+  std::cout << "sdf_mp_integration: Getting the GetNBV..." << std::endl;
+
+  std::vector<robot::JointValueMap> robot_joints_vec(num_keys);
+
+  for (size_t i = 0; i < num_keys; i++)
+  {
+        gpmp2::Pose2Vector pose = plan.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', i));
+
+        robot::JointValueMap joint_values;
+        joint_values["x_joint"] = pose.pose().x(); 
+        joint_values["y_joint"] = pose.pose().y(); 
+        joint_values["theta_joint"] = pose.pose().theta(); 
+        
+        joint_values["arm_lift_joint"] = pose.configuration()[0]; 
+        joint_values["arm_flex_joint"] = pose.configuration()[1]; 
+        joint_values["arm_roll_joint"] = pose.configuration()[2]; 
+        joint_values["wrist_flex_joint"] = pose.configuration()[3]; 
+        joint_values["wrist_roll_joint"] = pose.configuration()[4]; 
+
+        joint_values["head_pan_joint"] = head_state_[0]; 
+        joint_values["head_tilt_joint"] = head_state_[1]; 
+
+        robot_joints_vec[i] = joint_values;
+
+  }
+
+  float nbv_joints[2] = {0,0};
+  gpu_voxels_ptr_->GetNBV(robot_joints_vec, nbv_joints);
+}
 
 void sdf_mp_integration::PlanningServer::printCosts(const gtsam::Values& traj){
 
