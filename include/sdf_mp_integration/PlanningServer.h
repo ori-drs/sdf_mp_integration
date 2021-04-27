@@ -91,6 +91,7 @@ class PlanningServer{
       actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction> execute_ac_ ;
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> execute_arm_ac_ ;
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> base_traj_ac_ ;
+      actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> head_traj_ac_ ;
 
       ResultsRecorder results_recorder_;
       HSRVisualiser dh_vis_;
@@ -158,7 +159,8 @@ class PlanningServer{
       //  constructor
       PlanningServer() :  execute_ac_("path_follow_action", true), 
                           base_traj_ac_("/hsrb/omni_base_controller/follow_joint_trajectory", true), 
-                          execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true) {}      
+                          execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true),
+                          head_traj_ac_("/hsrb/head_trajectory_controller/follow_joint_trajectory", true) {}      
       
       PlanningServer(ros::NodeHandle node);
 
@@ -192,8 +194,9 @@ class PlanningServer{
 
       //
       void moveToGo();
-      void look(const float x, const float y, const float z, const std::string frame);
-      void look(const gtsam::Values& traj, const size_t current_ind, const double t_look_ahead, const std::string frame);
+      // void look(const float head_pan_joint, const float head_tilt_joint);
+      void look(const float x, const float y, const float z, const std::string frame) const;
+      void look(const gtsam::Values& traj, const size_t current_ind, const double t_look_ahead, const std::string frame) const;
 
       void armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg);
       void baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
@@ -211,6 +214,7 @@ class PlanningServer{
       void executeBaseTrajectory(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind = 0, const double t_delay = 0);
       void executeArmPlan(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind = 0, const double t_delay = 0);
       void executeFullPlan(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind = 0, const double t_delay = 0);
+      void executeHeadTrajectory(const float head_pan_joint, const float head_tilt_joint, const size_t current_ind);
 
       void publishPlanMsg(const gtsam::Values& plan) const;
 
