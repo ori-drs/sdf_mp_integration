@@ -88,7 +88,7 @@ class PlanningServer{
       tf::TransformListener listener;
       sdf_mp_integration::SDFHandler<GPUVoxelsPtr>* sdf_handler_;
       ros::Publisher path_pub_, init_path_pub_, plan_msg_pub_, gaze_pub_, hsr_python_move_pub_;
-      actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction> execute_ac_ ;
+      // actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction> execute_ac_ ;
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> execute_arm_ac_ ;
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> base_traj_ac_ ;
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> head_traj_ac_ ;
@@ -157,11 +157,11 @@ class PlanningServer{
 
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       //  constructor
-      PlanningServer() :  execute_ac_("path_follow_action", true), 
-                          base_traj_ac_("/hsrb/omni_base_controller/follow_joint_trajectory", true), 
+      PlanningServer() :  base_traj_ac_("/hsrb/omni_base_controller/follow_joint_trajectory", true), 
                           execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true),
                           head_traj_ac_("/hsrb/head_trajectory_controller/follow_joint_trajectory", true) {}      
-      
+      // execute_ac_("path_follow_action", true), 
+
       PlanningServer(ros::NodeHandle node);
 
       ~PlanningServer() {}
@@ -206,7 +206,7 @@ class PlanningServer{
       void visualiseTrajectory(const gtsam::Values& plan, const size_t num_keys) const;
       void visualiseBasePlan(const gtsam::Values& plan, const size_t num_keys) const;
       void visualiseInitialBasePlan(const gtsam::Values& plan, const size_t num_keys) const;
-      void executePathFollow(const gtsam::Values& plan);
+      // void executePathFollow(const gtsam::Values& plan);
 
       bool hasExecutionStopped() const;
       void cancelAllGoals();
