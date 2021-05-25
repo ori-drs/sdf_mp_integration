@@ -8,10 +8,9 @@
 #include <sdf_mp_integration/PlanningServer.h>
 
 sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  base_traj_ac_("/hsrb/omni_base_controller/follow_joint_trajectory", true), 
-                                                                            execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true),
-                                                                            head_traj_ac_("/hsrb/head_trajectory_controller/follow_joint_trajectory", true)
+                                                                            execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true)
+                                                                            // head_traj_ac_("/hsrb/head_trajectory_controller/follow_joint_trajectory", true)
  {
-                                                                            // execute_ac_("path_follow_action", true)   
     node_ = node;
     node_.param<std::string>("base_goal_sub_topic", base_goal_sub_topic_, "move_base_simple/goal");
     node_.param<std::string>("arm_goal_sub_topic", arm_goal_sub_topic_, "arm_goal");
@@ -23,7 +22,7 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  base
     arm_task_ = false;
     full_task_ = false;
 
-    results_recorder_ = ResultsRecorder("/home/mark/iros2021", "");
+    results_recorder_ = ResultsRecorder("/home/mark/next_best_view", "");
 
     // Subscriptions
     base_goal_sub_ = node_.subscribe(base_goal_sub_topic_, 10, &PlanningServer::baseGoalCallback, this);
@@ -36,7 +35,6 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  base
     path_pub_ = node_.advertise<nav_msgs::Path>("gpmp2_plan", 1000);
     init_path_pub_ = node_.advertise<nav_msgs::Path>("gpmp2_init_plan", 1000);
     plan_msg_pub_ = node_.advertise<sdf_mp_integration::GtsamValues>("gpmp2_results", 1);
-    gaze_pub_ = node_.advertise<sdf_mp_integration::HeadDirection>("hsr_gaze_update", 1);
     hsr_python_move_pub_ = node_.advertise<std_msgs::String>("hsr_move_to_go", 1);
 
     arm_ = GenerateHSRArm();
@@ -44,22 +42,21 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  base
     dh_vis_ = HSRVisualiser(node_);
     dh_vis_.setArm(arm_);
 
-    // execute_ac_ = actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction>("path_follow_action", true);
-    // ROS_INFO("Waiting for action servers to start.");
-    // execute_ac_.waitForServer();
     ROS_INFO("Waiting for action servers to start.");
     base_traj_ac_.waitForServer();
     ROS_INFO("execute_ac_ ready.");
     execute_arm_ac_.waitForServer();
     ROS_INFO("execute_arm_ac_ ready.");
 
-    moveToGo();
-    look(1.5,0.0,0.0, "base_footprint");
-    ros::Duration(1).sleep();
-
     // // Start the mapping
     gpu_voxels_ptr_ = new gpu_voxels_ros::GPUVoxelsHSRServer(node_);
     sdf_handler_ = new sdf_mp_integration::SDFHandler<GPUVoxelsPtr>(gpu_voxels_ptr_);
+    head_controller_ = new sdf_mp_integration::HeadController(node_, gpu_voxels_ptr_, delta_t_);
+
+    moveToGo();
+    head_controller_->look(1.5,0.0,0.0, "base_footprint");
+    ros::Duration(1).sleep();
+
     std::cout << "PlanningServer ready..." << std::endl;
 
     // Pause for mapping to take effect
@@ -72,35 +69,6 @@ void sdf_mp_integration::PlanningServer::moveToGo(){
   msg.data = "";
   hsr_python_move_pub_.publish(msg);
   std::cout << "Move to go msg sent..." << std::endl;
-}
-
-// void sdf_mp_integration::PlanningServer::look(const float head_pan_joint, const float head_tilt_joint) {
-
-//     // Look ahead
-//     // sdf_mp_integration::HeadDirection head_msg;
-//     // head_msg.pan_joint_state = head_pan_joint;
-//     // head_msg.tilt_joint_state = head_tilt_joint;
-//     // gaze_pub_.publish(head_msg);
-//     this->executeHeadTrajectory(head_pan_joint, head_tilt_joint);
-
-// }
-
-void sdf_mp_integration::PlanningServer::look(const float x, const float y, const float z, const std::string frame) const{
-
-    // Look ahead
-    sdf_mp_integration::HeadDirection gaze_msg;
-    gaze_msg.pt.x = x;
-    gaze_msg.pt.y = y;
-    gaze_msg.pt.z = z;
-    gaze_msg.frame = frame;
-    gaze_pub_.publish(gaze_msg);
-
-}
-
-void sdf_mp_integration::PlanningServer::look(const gtsam::Values& traj, const size_t current_ind, const double t_look_ahead, const std::string frame) const{
-    
-    gpmp2::Pose2Vector pose = traj.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', current_ind + ceil(t_look_ahead/delta_t_)));
-    look(pose.pose().x(), pose.pose().y(), 0, frame);
 }
 
 gtsam::Values sdf_mp_integration::PlanningServer::getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose){
@@ -262,7 +230,7 @@ void sdf_mp_integration::PlanningServer::createSettings(float total_time, int to
     gtsam::Vector joint_vel_limit_thresh_(arm_dof_+3);
 
     // joint velocity limit param
-    joint_vel_limit_vec_ << 0.2, 0.2, 0.5, 0.1, 0.3, 1.0, 1.0, 1.0;
+    joint_vel_limit_vec_ << 0.15, 0.15, 0.5, 0.1, 0.3, 1.0, 1.0, 1.0;
     joint_vel_limit_thresh_ = 0.01 * gtsam::Vector::Ones(arm_dof_+3);
     
 
@@ -349,14 +317,14 @@ bool sdf_mp_integration::PlanningServer::isTaskComplete(){
     );
   }
   else{
-    std::cout << "xerr: " << abs(odom_state_[0] - goal_state_.pose().x())
-              << "yerr: " <<  abs(odom_state_[1] - goal_state_.pose().y())
-              << "terr: " <<  abs(odom_state_[2] - goal_state_.pose().theta()) 
-              << "1err: " <<  abs(joint_state_[0] - goal_state_.configuration()[0])
-              << "2err: " <<  abs(joint_state_[1] - goal_state_.configuration()[1])
-              << "3err: " <<  abs(joint_state_[2] - goal_state_.configuration()[2])
-              << "4err: " <<  abs(joint_state_[3] - goal_state_.configuration()[3]) 
-              << "5err: " <<  abs(joint_state_[4] - goal_state_.configuration()[4]) << std::endl;
+    // std::cout << "xerr: " << abs(odom_state_[0] - goal_state_.pose().x())
+    //           << "yerr: " <<  abs(odom_state_[1] - goal_state_.pose().y())
+    //           << "terr: " <<  abs(odom_state_[2] - goal_state_.pose().theta()) 
+    //           << "1err: " <<  abs(joint_state_[0] - goal_state_.configuration()[0])
+    //           << "2err: " <<  abs(joint_state_[1] - goal_state_.configuration()[1])
+    //           << "3err: " <<  abs(joint_state_[2] - goal_state_.configuration()[2])
+    //           << "4err: " <<  abs(joint_state_[3] - goal_state_.configuration()[3]) 
+    //           << "5err: " <<  abs(joint_state_[4] - goal_state_.configuration()[4]) << std::endl;
 
     return (abs(odom_state_[0] - goal_state_.pose().x()) <= 0.05 &&
     abs(odom_state_[1] - goal_state_.pose().y()) <= 0.05 &&
@@ -431,7 +399,7 @@ void sdf_mp_integration::PlanningServer::replan(){
     if(last_traj_error < 1.5 * traj_error && last_traj_error >= traj_error && !collisionCheck(traj_res_) && !hasExecutionStopped()){
       // std::cout << "Using same trajectory."<< std::endl;
         sdf_mp_integration::Timer nbvTimer("PlanningNBVTimer");
-        this->GetNBV(traj_res_, delta_t_, total_time_step_, idx + 2);
+        head_controller_->GetNextCameraPosition(traj_res_, head_state_, delta_t_, total_time_step_, idx);
         nbvTimer.Stop();
       return;
     }
@@ -487,7 +455,7 @@ void sdf_mp_integration::PlanningServer::replan(){
     // std::cout << "Refit iters: " << iters << std::endl;
 
     sdf_mp_integration::Timer nbvTimer("PlanningNBVTimer");
-    this->GetNBV(traj_res_, delta_t_, total_time_step_, 2);
+    head_controller_->GetNextCameraPosition(traj_res_, head_state_, delta_t_, total_time_step_, 2);
     nbvTimer.Stop();
 
     if(collisionCheck(traj_res_)){
@@ -531,7 +499,7 @@ void sdf_mp_integration::PlanningServer::replan(){
     float map_coverage = gpu_voxels_ptr_->getPercentageMapExplored();
     ros::WallDuration task_dur = ros::WallTime::now() - task_callback_start_t_;
 
-    std::cout << "Robot has observed " << map_coverage << "% of the map." << std::endl;
+    std::cout << "Robot has observed " << 100 * map_coverage << "% of the map." << std::endl;
     std::cout << "The task took " << task_dur.toNSec() << "ns to complete." << std::endl;
     // results_recorder_.saveResults();
     // std::cout << "Results saved!" << std::endl;
@@ -556,7 +524,7 @@ void sdf_mp_integration::PlanningServer::estimateSettings(const gpmp2::Pose2Vect
 
   if(base_task_){
     est_traj_dist = sqrt(std::pow( goal_pose.pose().x() - start_pose.pose().x(), 2) + std::pow(goal_pose.pose().y() - start_pose.pose().y(), 2));
-    est_traj_time = est_traj_dist / 0.15;
+    est_traj_time = est_traj_dist / 0.07;
     est_steps = round(est_traj_time/delta_t_) + 1;  
     est_traj_time = est_steps * delta_t_;
   }
@@ -586,7 +554,9 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     full_task_ = false;
 
     // Look at the target location
-    look(msg->pose.position.x, msg->pose.position.y, 0.0, "odom");
+    std::cout << "Trying to look" << std::endl;
+    head_controller_->look(msg->pose.position.x, msg->pose.position.y, 0.0, "odom");
+    std::cout << "Looking works" << std::endl;
     ros::Duration(2).sleep();
 
     gpmp2::Pose2Vector start_pose;
@@ -641,9 +611,12 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
       // Start timer and execute
       begin_t_ = ros::WallTime::now();
 
+      std::cout << "Getting next cam position" << std::endl;
+
       sdf_mp_integration::Timer nbvTimer("PlanningNBVTimer");
-      this->GetNBV(traj_res_, delta_t_, total_time_step_, 2);
+      head_controller_->GetNextCameraPosition(traj_res_, head_state_, delta_t_, total_time_step_, 2);
       nbvTimer.Stop();
+      std::cout << "Got next cam position" << std::endl;
 
       executeBaseTrajectory(traj_res_, delta_t_, total_time_step_);
       visualiseBasePlan(traj_res_, total_time_step_);
@@ -739,7 +712,7 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
     full_task_ = true;
 
     // Look at the target location
-    look(msg->base.pose.position.x, msg->base.pose.position.y, 0.0, "odom");
+    head_controller_->look(msg->base.pose.position.x, msg->base.pose.position.y, 0.0, "odom");
     // look(msg->base.pose.position.x, msg->base.pose.position.y, 0.5, "odom");
 
     gpmp2::Pose2Vector start_pose;
@@ -942,44 +915,9 @@ bool sdf_mp_integration::PlanningServer::hasExecutionStopped() const{
 }
 
 void sdf_mp_integration::PlanningServer::cancelAllGoals(){
-  // execute_ac_.cancelAllGoals();
   base_traj_ac_.cancelAllGoals();
   execute_arm_ac_.cancelAllGoals();
 }
-
-// void sdf_mp_integration::PlanningServer::executePathFollow(const gtsam::Values& plan) {
-//     tmc_omni_path_follower::PathFollowerGoal path_goal;
-//     path_goal.path_with_goal.header.frame_id = "odom";
-
-//     for (size_t i = 0; i < total_time_step_; i++)
-//     {
-//       gpmp2::Pose2Vector pose = plan.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', i));
-//       tf::Matrix3x3 rot_mat;
-//       tf::Quaternion q;
-//       rot_mat.setEulerZYX(pose.pose().theta(), 0, 0);
-// 	    rot_mat.getRotation(q);
-
-//       geometry_msgs::PoseStamped pose_msg;
-//       pose_msg.header.frame_id = "odom";
-//       pose_msg.pose.position.x = pose.pose().x();
-//       pose_msg.pose.position.y = pose.pose().y(); 
-//       pose_msg.pose.position.z = 0;
-//       pose_msg.pose.orientation.x = q[0];
-//       pose_msg.pose.orientation.y = q[1];
-//       pose_msg.pose.orientation.z = q[2];
-//       pose_msg.pose.orientation.w = q[3];
-
-//       path_goal.path_with_goal.poses.push_back(pose_msg);
-
-//       if(i == total_time_step_ - 1){
-//         path_goal.path_with_goal.goal = pose_msg.pose;
-//       }
-//     }
-
-//     execute_ac_.sendGoal(path_goal);
-    
-
-// };
 
 void sdf_mp_integration::PlanningServer::executeTrajectory(const gtsam::Values& plan, const size_t current_ind, const double t_delay) {
 
@@ -1039,26 +977,6 @@ void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Valu
     }
 
     base_traj_ac_.sendGoal(trajectory_goal);    
-
-};
-
-void sdf_mp_integration::PlanningServer::executeHeadTrajectory(const float head_pan_joint, const float head_tilt_joint, const size_t delay_inds) {
-    control_msgs::FollowJointTrajectoryGoal trajectory_goal;
-    trajectory_goal.trajectory.header.stamp = ros::Time::now();
-    // trajectory_goal.trajectory.header.frame_id = "odom";
-
-    trajectory_goal.trajectory.joint_names.push_back("head_pan_joint");      
-    trajectory_goal.trajectory.joint_names.push_back("head_tilt_joint");      
-
-    trajectory_goal.trajectory.points.resize(1);
-
-    trajectory_msgs::JointTrajectoryPoint pt;
-    pt.positions = {head_pan_joint, head_tilt_joint};
-    pt.time_from_start = ros::Duration( delay_inds * delta_t_); 
-
-    trajectory_goal.trajectory.points[0] = pt;
-
-    head_traj_ac_.sendGoal(trajectory_goal);    
 
 };
 
@@ -1160,78 +1078,6 @@ void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& pl
     base_traj_ac_.sendGoal(path_goal);
 
 };
-
-// TODO - fix this so that we dont manually have to changge the map dimensions
-void sdf_mp_integration::PlanningServer::TestNBV(){
-  std::cout << "sdf_mp_integration: Testing the NBV cone..." << std::endl;
-
-  std::vector<robot::JointValueMap> robot_joints_vec;
-  robot::JointValueMap joint_values;
-  // joint_values["x_joint"] = odom_state_[0] + (0.5 * 448) * 0.025 ; 
-  // joint_values["y_joint"] = odom_state_[1] + (0.5 * 448) * 0.025; 
-  joint_values["x_joint"] = odom_state_[0]; 
-  joint_values["y_joint"] = odom_state_[1]; 
-
-  joint_values["theta_joint"] = odom_state_[2]; 
-
-  joint_values["arm_lift_joint"] = joint_state_[0]; 
-  joint_values["arm_flex_joint"] = joint_state_[1]; 
-  joint_values["arm_roll_joint"] = joint_state_[2]; 
-  joint_values["wrist_flex_joint"] = joint_state_[3]; 
-  joint_values["wrist_roll_joint"] = joint_state_[4]; 
-
-  joint_values["head_pan_joint"] = head_state_[0]; 
-  joint_values["head_tilt_joint"] = head_state_[1]; 
-
-  robot_joints_vec.push_back(joint_values);
-
-  float nbv_joints[2] = {0,0};
-  gpu_voxels_ptr_->GetNBV(robot_joints_vec, nbv_joints, 0);
-  // this->look(nbv_joints[0], nbv_joints[1]);
-  this->executeHeadTrajectory(nbv_joints[0], nbv_joints[1], 1);
-}
-
-void sdf_mp_integration::PlanningServer::GetNBV(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind){
-  std::cout << "sdf_mp_integration: Getting the GetNBV..." << std::endl;
-
-  if(current_ind>=num_keys){
-    return;
-  }
-
-  std::vector<robot::JointValueMap> robot_joints_vec(num_keys);
-
-  // for (size_t i = current_ind; i < num_keys; i++)
-  for (size_t i = 0; i < num_keys; i++)
-  {
-        gpmp2::Pose2Vector pose = plan.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', i));
-
-        robot::JointValueMap joint_values;
-        joint_values["x_joint"] = pose.pose().x(); 
-        joint_values["y_joint"] = pose.pose().y(); 
-        joint_values["theta_joint"] = pose.pose().theta(); 
-        
-        joint_values["arm_lift_joint"] = pose.configuration()[0]; 
-        joint_values["arm_flex_joint"] = pose.configuration()[1]; 
-        joint_values["arm_roll_joint"] = pose.configuration()[2]; 
-        joint_values["wrist_flex_joint"] = pose.configuration()[3]; 
-        joint_values["wrist_roll_joint"] = pose.configuration()[4]; 
-
-        joint_values["head_pan_joint"] = head_state_[0]; 
-        joint_values["head_tilt_joint"] = head_state_[1]; 
-
-        robot_joints_vec[i] = joint_values;
-
-  }
-
-  float nbv_joints[2] = {0,0};
-  gpu_voxels_ptr_->GetNBV(robot_joints_vec, nbv_joints, current_ind);
-  
-  std::cout << "Requesting head move to \t pan: " << nbv_joints[0] << "\t tilt: " << nbv_joints[1] << std::endl;
-  this->executeHeadTrajectory(nbv_joints[0], nbv_joints[1], 1);
-
-  // this->look(nbv_joints[0], nbv_joints[1]);
-
-}
 
 void sdf_mp_integration::PlanningServer::printCosts(const gtsam::Values& traj){
 
@@ -1655,25 +1501,3 @@ gtsam::Values sdf_mp_integration::PlanningServer::manualOptimize(const gtsam::Va
   }
 
 };
-
-
-
-// Called once when the goal completes
-void sdf_mp_integration::PlanningServer::doneCb(const actionlib::SimpleClientGoalState& state,
-            const tmc_omni_path_follower::PathFollowerResultConstPtr& result)
-{
-  ROS_INFO("Finished in state [%s]", state.toString().c_str());
-  ros::shutdown();
-}
-
-// Called once when the goal becomes active
-void sdf_mp_integration::PlanningServer::activeCb()
-{
-  ROS_INFO("Goal just went active");
-}
-
-// Called every time feedback is received for the goal
-void sdf_mp_integration::PlanningServer::feedbackCb(const tmc_omni_path_follower::PathFollowerFeedbackConstPtr& feedback)
-{
-  ROS_INFO("Got progress of length %f", feedback->progress);
-}

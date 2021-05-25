@@ -56,16 +56,16 @@
 
 #include <sdf_mp_integration/ArmPose.h>
 #include <sdf_mp_integration/WholeBodyPose.h>
-#include <sdf_mp_integration/HeadDirection.h>
 
 #include <sdf_mp_integration/utils/timing.h>
 #include <sdf_mp_integration/utils/traj_utils.h>
 #include <sdf_mp_integration/utils/Visualiser.h>
 #include <sdf_mp_integration/ResultsRecorder.h>
+#include <sdf_mp_integration/HeadController.h>
 
 
 // To execute base commands on hsr
-#include <tmc_omni_path_follower/PathFollowerAction.h>
+// #include <tmc_omni_path_follower/PathFollowerAction.h>
 #include <actionlib/client/simple_action_client.h>
 #include <control_msgs/FollowJointTrajectoryAction.h>
 #include <control_msgs/JointTrajectoryControllerState.h>
@@ -87,14 +87,15 @@ class PlanningServer{
       double resolution_;
       tf::TransformListener listener;
       sdf_mp_integration::SDFHandler<GPUVoxelsPtr>* sdf_handler_;
-      ros::Publisher path_pub_, init_path_pub_, plan_msg_pub_, gaze_pub_, hsr_python_move_pub_;
-      // actionlib::SimpleActionClient<tmc_omni_path_follower::PathFollowerAction> execute_ac_ ;
+      ros::Publisher path_pub_, init_path_pub_, plan_msg_pub_, hsr_python_move_pub_;
+
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> execute_arm_ac_ ;
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> base_traj_ac_ ;
-      actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> head_traj_ac_ ;
+      // actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> head_traj_ac_ ;
 
       ResultsRecorder results_recorder_;
       HSRVisualiser dh_vis_;
+      sdf_mp_integration::HeadController* head_controller_;
 
       GPUVoxelsPtr gpu_voxels_ptr_ = NULL; 
 
@@ -158,8 +159,8 @@ class PlanningServer{
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW
       //  constructor
       PlanningServer() :  base_traj_ac_("/hsrb/omni_base_controller/follow_joint_trajectory", true), 
-                          execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true),
-                          head_traj_ac_("/hsrb/head_trajectory_controller/follow_joint_trajectory", true) {}      
+                          execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true){}
+                          // head_traj_ac_("/hsrb/head_trajectory_controller/follow_joint_trajectory", true) {}      
       // execute_ac_("path_follow_action", true), 
 
       PlanningServer(ros::NodeHandle node);
@@ -189,8 +190,8 @@ class PlanningServer{
       void replan(const ros::TimerEvent& /*event*/);
       void replan();
 
-      void TestNBV();
-      void GetNBV(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind);
+      // void TestNBV();
+      // void GetNBV(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind);
 
       //
       void moveToGo();
@@ -214,13 +215,13 @@ class PlanningServer{
       void executeBaseTrajectory(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind = 0, const double t_delay = 0);
       void executeArmPlan(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind = 0, const double t_delay = 0);
       void executeFullPlan(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind = 0, const double t_delay = 0);
-      void executeHeadTrajectory(const float head_pan_joint, const float head_tilt_joint, const size_t current_ind);
+      // void executeHeadTrajectory(const float head_pan_joint, const float head_tilt_joint, const size_t current_ind);
 
       void publishPlanMsg(const gtsam::Values& plan) const;
 
-      void doneCb(const actionlib::SimpleClientGoalState& state, const tmc_omni_path_follower::PathFollowerResultConstPtr& result);
-      void activeCb();
-      void feedbackCb(const tmc_omni_path_follower::PathFollowerFeedbackConstPtr& feedback);
+      // void doneCb(const actionlib::SimpleClientGoalState& state, const tmc_omni_path_follower::PathFollowerResultConstPtr& result);
+      // void activeCb();
+      // void feedbackCb(const tmc_omni_path_follower::PathFollowerFeedbackConstPtr& feedback);
 
       bool collisionCheck(const gtsam::Values &traj);
       template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 

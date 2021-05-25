@@ -71,6 +71,7 @@ add_library(${PROJECT_NAME}_lib
   src/GraphMaintainer.cpp
   src/SetHSRConf.cpp
   src/GenerateArm.cpp
+  src/HeadController.cpp
   src/ResultsRecorder.cpp
   src/utils/timing.cpp
   src/utils/traj_utils.cpp
@@ -133,6 +134,7 @@ src/GraphMaintainer.cpp
 src/SetHSRConf.cpp
 src/GenerateArm.cpp
 src/ResultsRecorder.cpp
+src/HeadController.cpp
 src/utils/timing.cpp
 src/utils/traj_utils.cpp
 src/utils/Visualiser.cpp
