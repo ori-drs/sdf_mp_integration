@@ -22,7 +22,7 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
     arm_task_ = false;
     full_task_ = false;
 
-    results_recorder_ = ResultsRecorder("/home/mark/iros2021", "");
+    results_recorder_ = ResultsRecorder("/home/orion/iros2021", "");
 
     // Subscriptions
     base_goal_sub_ = node_.subscribe(base_goal_sub_topic_, 10, &PlanningServer::baseGoalCallback, this);
@@ -52,6 +52,7 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  exec
     execute_arm_ac_.waitForServer();
     ROS_INFO("execute_arm_ac_ ready.");
 
+    // ros::Duration(1).sleep();
     moveToGo();
     look(1.5,0.0,0.0, "base_footprint");
     ros::Duration(1).sleep();
@@ -223,7 +224,7 @@ void sdf_mp_integration::PlanningServer::odomStateCallback(const control_msgs::J
 void sdf_mp_integration::PlanningServer::createSettings(float total_time, int total_time_step){
     total_time_step_ = total_time_step;
     total_time_ = total_time;
-    node_.param<float>("epsilon", epsilon_, 0.5);
+    node_.param<float>("epsilon", epsilon_, 0.2);
     // node_.param<float>("cost_sigma", cost_sigma_, 0.2);
     // node_.param<float>("epsilon", epsilon_, 0.2);
     node_.param<float>("cost_sigma", cost_sigma_, 0.05);
@@ -386,7 +387,7 @@ void sdf_mp_integration::PlanningServer::replan(){
   
   if (!isTaskComplete())
   {
-    
+    // look(1,-1.3,1.0, "odom");
     double traj_error, new_traj_error, reinit_traj_error, old_err_improvement, reinit_err_improvement;
     // Calculate which index variable node we're at
     ros::WallTime current_t = ros::WallTime::now();
@@ -403,10 +404,10 @@ void sdf_mp_integration::PlanningServer::replan(){
     results_recorder_.recordActualTrajUpdate(task_dur_.toSec(), start_pose);
 
     // If less than 1s left, finish
-    // if (dur.toSec() >= setting_.total_time - 1)
-    // {
-    //   return;
-    // }
+    if (dur.toSec() >= setting_.total_time - 1)
+    {
+      return;
+    }
 
     double float_idx = dur.toSec()/delta_t_;
     int idx = round(float_idx);
@@ -707,7 +708,8 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
     full_task_ = true;
 
     // Look at the target location
-    look(msg->base.pose.position.x, msg->base.pose.position.y, 0.0, "odom");
+    // look(msg->base.pose.position.x, msg->base.pose.position.y, 1.0, "odom");
+    look(2.0, -2.0, 1.0, "odom");
     // look(msg->base.pose.position.x, msg->base.pose.position.y, 0.5, "odom");
 
     gpmp2::Pose2Vector start_pose;

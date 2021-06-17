@@ -35,10 +35,14 @@
     <arg name="robot_name" value="$(optenv ROBOT_NAME hsrb)" />
   </include>
 
-  <include file="$(find robot_self_filter)/launch/filter.launch">
-    <arg name="cloud_in" value="/hsrb/head_rgbd_sensor/depth_registered/rectified_points"/>
-    <arg name="cloud_out" value="/self_filtered_cloud"/>
-  </include>
+  <rosparam command="load" file="$(find robot_self_filter)/launch/hsr_links.yaml"/>
+  <param name="sensor_frame" value="head_rgbd_sensor_rgb_frame"/>
+
+    <!-- Robot Self Filter -->
+  <node pkg="robot_self_filter" name="robot_self_filter" type="self_filter" respawn="true" output="screen">
+    <arg name="cloud_in" value="local_points" />
+    <arg name="cloud_out" value="self_filtered_cloud" />      
+  </node>
 
   <node name="spawn_cylinder" pkg="gazebo_ros" type="spawn_model" args="-file /home/mark/.gazebo/models/cylinder/model.sdf  -sdf -model cylinder -y 20.0 -x 20.0 -Y -1.57" />
   <node name="spawn_cylinder2" pkg="gazebo_ros" type="spawn_model" args="-file /home/mark/.gazebo/models/cylinder/model.sdf  -sdf -model cylinder2 -y 21.0 -x 20.0 -Y -1.57" />

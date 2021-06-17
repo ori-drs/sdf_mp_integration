@@ -14,9 +14,20 @@
   <param name="transform_topic" type="string" value="transform_topic" />
   <param name="base_goal_sub_topic" type="string" value="/move_base_simple/goal" />
   <!-- <param name="pcl_topic" type="string" value="/hsrb/head_rgbd_sensor/depth_registered/rectified_points" /> -->
-  <param name="pcl_topic" type="string" value="/local_points" />
+  <!-- <param name="pcl_topic" type="string" value="/local_points" /> -->
+  <param name="pcl_topic" type="string" value="/self_filtered_cloud" />
 
   <node type="rviz" name="rviz" pkg="rviz" args="-d $(find sdf_mp_integration)/config/hsr_vis.rviz" />
   <!-- <node name="planning_server" pkg="sdf_mp_integration" type="planning_server_node"/> -->
+
+
+
+  <rosparam command="load" file="$(find robot_self_filter)/launch/hsr_links.yaml"/>
+  <param name="sensor_frame" value="head_rgbd_sensor_rgb_frame"/>
+
+  <node pkg="robot_self_filter" name="robot_self_filter" type="self_filter" respawn="true" output="screen">
+      <remap from="cloud_in" to="local_points"/>
+      <remap from="cloud_out" to="self_filtered_cloud"/>
+  </node>
 
 </launch>
