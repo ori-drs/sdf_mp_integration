@@ -191,6 +191,7 @@ add_dependencies(arm_goal_test_node sdf_mp_integration_generate_messages_cpp)
 catkin_install_python(PROGRAMS  scripts/plotting_node.py 
                                 scripts/hsr_python_controller.py
                                 scripts/moving_obstacle_node.py
+                                scripts/nbv_moving_obstacle_node.py
                       DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 # Install directory
@@ -207,4 +208,8 @@ PATTERN ".svn" EXCLUDE)
 
 install(DIRECTORY worlds/
 DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/worlds
+PATTERN ".svn" EXCLUDE)
+
+install(DIRECTORY maps/
+DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/maps
 PATTERN ".svn" EXCLUDE)
