@@ -83,6 +83,7 @@ class PlanningServer{
       ros::NodeHandle node_;
       ros::Subscriber base_goal_sub_, arm_goal_sub_, full_goal_sub_, joint_sub_, odom_sub_;
 
+      int head_behaviour_;
       std::string base_goal_sub_topic_, arm_goal_sub_topic_, full_goal_sub_topic_, actual_base_sub_topic_;
       double resolution_;
       tf::TransformListener listener;
@@ -153,6 +154,8 @@ class PlanningServer{
       bool moving_ = false;
       double last_traj_error;
       size_t goal_id_ = 0;
+
+      int num_stops = 0;
 
     public:
 

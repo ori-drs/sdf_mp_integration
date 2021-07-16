@@ -12,6 +12,7 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  base
                                                                             // head_traj_ac_("/hsrb/head_trajectory_controller/follow_joint_trajectory", true)
  {
     node_ = node;
+    node_.param<int>("head_behaviour", head_behaviour_, 3); // Default to 3 = optimised (ours)
     node_.param<std::string>("base_goal_sub_topic", base_goal_sub_topic_, "move_base_simple/goal");
     node_.param<std::string>("arm_goal_sub_topic", arm_goal_sub_topic_, "arm_goal");
     node_.param<std::string>("full_goal_sub_topic", full_goal_sub_topic_, "full_goal");
@@ -51,7 +52,7 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  base
     // // Start the mapping
     gpu_voxels_ptr_ = new gpu_voxels_ros::GPUVoxelsHSRServer(node_);
     sdf_handler_ = new sdf_mp_integration::SDFHandler<GPUVoxelsPtr>(gpu_voxels_ptr_);
-    head_controller_ = new sdf_mp_integration::HeadController(node_, gpu_voxels_ptr_, delta_t_);
+    head_controller_ = new sdf_mp_integration::HeadController(node_, gpu_voxels_ptr_, delta_t_, head_behaviour_);
 
     moveToGo();
     head_controller_->look(1.5,0.0,0.0, "base_footprint");
@@ -396,13 +397,30 @@ void sdf_mp_integration::PlanningServer::replan(){
     traj_error = graph_.error(traj_res_);    
     // std::cout << "Last error: " << last_traj_error << "\t New error: " << traj_error << std::endl;
     // if(last_traj_error < 1.5 * traj_error && last_traj_error >= traj_error && traj_error < error_theshold && !collisionCheck(traj_res_)){
-    if(last_traj_error < 1.5 * traj_error && last_traj_error >= traj_error && !collisionCheck(traj_res_) && !hasExecutionStopped()){
-      // std::cout << "Using same trajectory."<< std::endl;
-        sdf_mp_integration::Timer nbvTimer("PlanningNBVTimer");
+    bool stopped_bool = hasExecutionStopped();
+
+    if (stopped_bool)
+    {
+      num_stops++;
+    }
+    else{
+      num_stops = 0;
+    }
+    
+    if(last_traj_error < 1.5 * traj_error && last_traj_error >= traj_error && !collisionCheck(traj_res_) && !stopped_bool){
+        std::cout << "Using same trajectory."<< std::endl;
+        // sdf_mp_integration::Timer nbvTimer("PlanningNBVTimer");
+        if(idx > total_time_step_){
+          std::cout << "Index is greater that the total time steps!!" << std::endl;
+        }
+
         head_controller_->GetNextCameraPosition(traj_res_, head_state_, delta_t_, total_time_step_, idx);
-        nbvTimer.Stop();
+        // nbvTimer.Stop();
       return;
     }
+    
+
+    
 
     // std::cout << "Trajectory no longer valid. Constructing new graph..."<< std::endl;
 
@@ -439,7 +457,20 @@ void sdf_mp_integration::PlanningServer::replan(){
     // std::cout << "refitTimer" << std::endl;
 
     // sdf_mp_integration::Timer refitTimer("refitTimer");
-    gtsam::Values refit_values = sdf_mp_integration::refitPose2MobileArmTraj(traj_res_, start_pose, start_vel, setting_.Qc_model, old_delta_t, delta_t_, old_time_steps, total_time_step_, idx);
+    gtsam::Values refit_values;
+    if (num_stops > 20)
+    {
+      std::cout << "Appears to be stuck. Cancelling goals and starting planning using a straight line" << std::endl;
+      cancelAllGoals();
+      moveToGo();
+      ros::Duration(1).sleep();
+      head_controller_->look(goal_state_.pose().x(), goal_state_.pose().y(), 0.0, "odom");
+      ros::Duration(1).sleep();
+      refit_values = getInitTrajectory(start_pose, goal_state_);
+    }
+    else{
+      refit_values = sdf_mp_integration::refitPose2MobileArmTraj(traj_res_, start_pose, start_vel, setting_.Qc_model, old_delta_t, delta_t_, old_time_steps, total_time_step_, idx);
+    }
     // refitTimer.Stop();
     
     // std::cout << "initOptimiseTimer" << std::endl;
@@ -459,9 +490,16 @@ void sdf_mp_integration::PlanningServer::replan(){
     nbvTimer.Stop();
 
     if(collisionCheck(traj_res_)){
-      // std::cout << "Planned trajectory is in collision. Cancelling all current goals." << std::endl;
-      cancelAllGoals();
-      return;
+
+      if (num_stops > 20){
+        std::cout << "This should really be a recovery behaviour." << std::endl;
+        return;
+      }
+      else{
+        std::cout << "Planned trajectory is in collision. Cancelling all current goals." << std::endl;
+        cancelAllGoals();
+        return;
+      }
     }
 
     // sdf_mp_integration::Timer interpVisualiseTimer("interpVisualiseTimer");
@@ -517,14 +555,14 @@ void sdf_mp_integration::PlanningServer::replan(const ros::TimerEvent& /*event*/
   replan_mtx.unlock();
 }
 
-void sdf_mp_integration::PlanningServer::estimateSettings(const gpmp2::Pose2Vector& start_pose, const gpmp2::Pose2Vector& goal_pose){
+void sdf_mp_integration::PlanningServer::estimateAndCreateSettings(const gpmp2::Pose2Vector& start_pose, const gpmp2::Pose2Vector& goal_pose){
 
   float est_traj_dist, est_traj_time;
   int est_steps;
 
   if(base_task_){
     est_traj_dist = sqrt(std::pow( goal_pose.pose().x() - start_pose.pose().x(), 2) + std::pow(goal_pose.pose().y() - start_pose.pose().y(), 2));
-    est_traj_time = est_traj_dist / 0.07;
+    est_traj_time = est_traj_dist / 0.12;
     est_steps = round(est_traj_time/delta_t_) + 1;  
     est_traj_time = est_steps * delta_t_;
   }
@@ -540,6 +578,29 @@ void sdf_mp_integration::PlanningServer::estimateSettings(const gpmp2::Pose2Vect
   }
 
   createSettings(est_traj_time, est_steps);
+
+}
+
+void sdf_mp_integration::PlanningServer::estimateSettings(const gpmp2::Pose2Vector& start_pose, const gpmp2::Pose2Vector& goal_pose, float &est_traj_time, int &est_steps){
+
+  float est_traj_dist;
+
+  if(base_task_){
+    est_traj_dist = sqrt(std::pow( goal_pose.pose().x() - start_pose.pose().x(), 2) + std::pow(goal_pose.pose().y() - start_pose.pose().y(), 2));
+    est_traj_time = est_traj_dist / 0.12;
+    est_steps = round(est_traj_time/delta_t_) + 1;  
+    est_traj_time = est_steps * delta_t_;
+  }
+  else if(arm_task_){
+    est_traj_time = 10; // TODO - need to automate this calculation
+    est_steps = round(est_traj_time/delta_t_) + 1;
+  }
+  else if(full_task_){
+    est_traj_dist = sqrt(std::pow( goal_pose.pose().x() - start_pose.pose().x(), 2) + std::pow(goal_pose.pose().y() - start_pose.pose().y(), 2));
+    est_traj_time = est_traj_dist / 0.15;
+    est_steps = round(est_traj_time/delta_t_) + 1;  
+    est_traj_time = est_steps * delta_t_;
+  }
 
 }
 
@@ -976,7 +1037,7 @@ void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Valu
         ctr+=1;
     }
 
-    base_traj_ac_.sendGoal(trajectory_goal);    
+    // base_traj_ac_.sendGoal(trajectory_goal);    
 
 };
 
