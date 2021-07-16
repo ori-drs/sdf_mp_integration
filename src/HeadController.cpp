@@ -19,7 +19,7 @@ void sdf_mp_integration::HeadController::GetNextCameraPosition(const gtsam::Valu
       pan();
       return;
   case 2: // 
-      look(plan, current_ind, 2.0, "odom");
+      look(plan, current_ind, num_keys, 2.0, "odom");
       return;
   case 3:
       GetNBV(plan, head_state, delta_t, num_keys, current_ind);
@@ -33,13 +33,11 @@ void sdf_mp_integration::HeadController::GetNextCameraPosition(const gtsam::Valu
 
 
 void sdf_mp_integration::HeadController::GetNBV(const gtsam::Values& plan, float head_state[2], const double delta_t, const size_t num_keys, const size_t current_ind){
-//   std::cout << "sdf_mp_integration: Getting the GetNBV..." << std::endl;
+  std::cout << "sdf_mp_integration::HeadController::Getting the GetNBV. Ind:" << current_ind << "   num_keys:" << num_keys << std::endl;
 
   if(current_ind>=num_keys){
     return;
   }
-
-  size_t ind = std::min(current_ind + 2, num_keys - 1); 
 
   std::vector<robot::JointValueMap> robot_joints_vec(num_keys);
 
@@ -67,9 +65,10 @@ void sdf_mp_integration::HeadController::GetNBV(const gtsam::Values& plan, float
   }
 
   float nbv_joints[2] = {0,0};
-  gpu_voxels_ptr_->GetNBV(robot_joints_vec, nbv_joints, ind);
   
-//   std::cout << "Requesting head move to \t pan: " << nbv_joints[0] << "\t tilt: " << nbv_joints[1] << std::endl;
+  gpu_voxels_ptr_->GetNBV(robot_joints_vec, nbv_joints, current_ind);
+  
+  //   std::cout << "Requesting head move to \t pan: " << nbv_joints[0] << "\t tilt: " << nbv_joints[1] << std::endl;
   this->executeHeadTrajectory(nbv_joints[0], nbv_joints[1], 1);
 
 };
@@ -104,9 +103,11 @@ void sdf_mp_integration::HeadController::look(const float x, const float y, cons
 
 }
 
-void sdf_mp_integration::HeadController::look(const gtsam::Values& traj, const size_t current_ind, const double t_look_ahead, const std::string frame) const{
+void sdf_mp_integration::HeadController::look(const gtsam::Values& traj, const size_t current_ind,  const size_t num_keys, const double t_look_ahead, const std::string frame) const{
     
-    gpmp2::Pose2Vector pose = traj.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', current_ind + ceil(t_look_ahead/delta_t_)));
+    size_t ind = std::min(  current_ind + ceil(t_look_ahead/delta_t_), (double) num_keys - 1);
+    gpmp2::Pose2Vector pose = traj.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', ind));
+    std::cout << "Looking to x: " << pose.pose().x() << "\t y: " <<  pose.pose().y() << std::endl;
     look(pose.pose().x(), pose.pose().y(), 0, frame);
 }
 
