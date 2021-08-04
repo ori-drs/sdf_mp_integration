@@ -431,7 +431,7 @@ void sdf_mp_integration::PlanningServer::replan(){
     double old_delta_t = delta_t_;
     double old_time_steps = total_time_step_;
 
-    estimateSettings(start_pose, goal_state_);
+    estimateAndCreateSettings(start_pose, goal_state_);
 
     // New graph
     // sdf_mp_integration::Timer graphTimer("GraphConstruction");
@@ -581,7 +581,7 @@ void sdf_mp_integration::PlanningServer::estimateAndCreateSettings(const gpmp2::
 
 }
 
-void sdf_mp_integration::PlanningServer::estimateSettings(const gpmp2::Pose2Vector& start_pose, const gpmp2::Pose2Vector& goal_pose, float &est_traj_time, int &est_steps){
+void sdf_mp_integration::PlanningServer::estimateSettings(const gpmp2::Pose2Vector& start_pose, const gpmp2::Pose2Vector& goal_pose, float& est_traj_time, int& est_steps){
 
   float est_traj_dist;
 
@@ -640,7 +640,7 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     goal_state_ = end_pose;
 
     // Determine how long the trajectory should be and how it should be split up
-    estimateSettings(start_pose, end_pose);
+    estimateAndCreateSettings(start_pose, end_pose);
 
     // sdf_mp_integration::Timer graphTimer("GraphConstruction");
 
@@ -727,7 +727,7 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
 
     // settings
     // Determine how long the trajectory should be and how it should be split up
-    estimateSettings(start_pose, end_pose);
+    estimateAndCreateSettings(start_pose, end_pose);
 
     // initial values
     gtsam::Values init_values = getInitTrajectory(start_pose, end_pose);
@@ -802,7 +802,7 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
 
     // settings
     // Determine how long the trajectory should be and how it should be split up
-    estimateSettings(start_pose, end_pose);
+    estimateAndCreateSettings(start_pose, end_pose);
 
     // initial values
 
