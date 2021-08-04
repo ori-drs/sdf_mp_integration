@@ -137,3 +137,6 @@ void sdf_mp_integration::HeadController::pan() {
     this->executeHeadTrajectory(current_theta_, tilt_, 1);
 }
 
+void sdf_mp_integration::HeadController::lookForwards() {
+    this->executeHeadTrajectory(0, 0, 1);
+}

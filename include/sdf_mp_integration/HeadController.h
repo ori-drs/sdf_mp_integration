@@ -58,6 +58,7 @@ namespace sdf_mp_integration {
         void look(const float x, const float y, const float z, const std::string frame) const;
         void look(const gtsam::Values& traj, const size_t current_ind,  const size_t num_keys, const double t_look_ahead, const std::string frame) const;
         void pan();
+        void lookForwards();
 
   };
 } // sdf_mp_integration namespace
