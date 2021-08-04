@@ -12,11 +12,16 @@ class HSRPythonController():
         self.robot = Robot()
         self.whole_body = self.robot.get("whole_body")
         self.omni_base = self.robot.get("omni_base")
-        self.gaze_sub = rospy.Subscriber("hsr_gaze_update", HeadDirection, self.look)
+        self.gaze_sub = rospy.Subscriber("hsr_gaze_update", HeadDirection, self.look, queue_size=1)
         self.move_sub = rospy.Subscriber("hsr_move_to_go", String, self.move_to_go)
         rospy.loginfo("hsr_python_controller ready...")
 
     def look(self, msg):
+
+        # if(msg.pan_joint_state):
+        #     print("Python controller moving head to [{0}, {1}]".format(msg.pan_joint_state, msg.tilt_joint_state))
+        #     self.whole_body.move_to_joint_positions({'head_tilt_joint': msg.tilt_joint_state, 'head_pan_joint': msg.pan_joint_state })
+        # else:
         try:
             self.whole_body.gaze_point(geometry.vector3(msg.pt.x, msg.pt.y, msg.pt.z), msg.frame)
         except Exception:

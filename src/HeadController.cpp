@@ -33,7 +33,7 @@ void sdf_mp_integration::HeadController::GetNextCameraPosition(const gtsam::Valu
 
 
 void sdf_mp_integration::HeadController::GetNBV(const gtsam::Values& plan, float head_state[2], const double delta_t, const size_t num_keys, const size_t current_ind){
-  std::cout << "sdf_mp_integration::HeadController::Getting the GetNBV. Ind:" << current_ind << "   num_keys:" << num_keys << std::endl;
+//   std::cout << "sdf_mp_integration::HeadController::Getting the GetNBV. Ind:" << current_ind << "   num_keys:" << num_keys << std::endl;
 
   if(current_ind>=num_keys){
     return;
