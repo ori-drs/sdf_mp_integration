@@ -364,6 +364,20 @@ bool sdf_mp_integration::PlanningServer::collisionCheck(const gtsam::Values &tra
 
 }
 
+void sdf_mp_integration::PlanningServer::finishTaskCleanup(){
+    replan_timer_.stop();
+    std::cout << "Finished re-planning - goal reached!" << std::endl;
+    float map_coverage = gpu_voxels_ptr_->getPercentageMapExplored();
+    ros::WallDuration task_dur = ros::WallTime::now() - task_callback_start_t_;
+
+    std::cout << "Robot has observed " << 100 * map_coverage << "% of the map." << std::endl;
+    std::cout << "The task took " << task_dur.toNSec() << "ns to complete." << std::endl;
+    // results_recorder_.saveResults();
+    // std::cout << "Results saved!" << std::endl;
+    // look(1.0, 0, 0.0, "base_footprint");
+    head_controller_->lookForwards();   
+}
+
 void sdf_mp_integration::PlanningServer::replan(){
   
   if (!isTaskComplete())
@@ -531,17 +545,7 @@ void sdf_mp_integration::PlanningServer::replan(){
 
 
   } else{
-
-    replan_timer_.stop();
-    std::cout << "Finished re-planning - goal reached!" << std::endl;
-    float map_coverage = gpu_voxels_ptr_->getPercentageMapExplored();
-    ros::WallDuration task_dur = ros::WallTime::now() - task_callback_start_t_;
-
-    std::cout << "Robot has observed " << 100 * map_coverage << "% of the map." << std::endl;
-    std::cout << "The task took " << task_dur.toNSec() << "ns to complete." << std::endl;
-    // results_recorder_.saveResults();
-    // std::cout << "Results saved!" << std::endl;
-    // look(1.0, 0, 0.0, "base_footprint");
+    finishTaskCleanup();
   }
 
 }

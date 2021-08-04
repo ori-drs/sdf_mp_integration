@@ -193,6 +193,7 @@ class PlanningServer{
       bool isTaskComplete();
       void replan(const ros::TimerEvent& /*event*/);
       void replan();
+      void finishTaskCleanup();
 
       // void TestNBV();
       // void GetNBV(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind);
