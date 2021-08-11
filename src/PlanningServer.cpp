@@ -8,7 +8,9 @@
 #include <sdf_mp_integration/PlanningServer.h>
 
 sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  base_traj_ac_("/hsrb/omni_base_controller/follow_joint_trajectory", true), 
-                                                                            execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true)
+                                                                            execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true),
+                                                                            current_vel_(8)
+
                                                                             // head_traj_ac_("/hsrb/head_trajectory_controller/follow_joint_trajectory", true)
  {
     node_ = node;
@@ -378,86 +380,59 @@ void sdf_mp_integration::PlanningServer::finishTaskCleanup(){
     head_controller_->lookForwards();   
 }
 
-void sdf_mp_integration::PlanningServer::replan(){
-  
-  if (!isTaskComplete())
-  {
+void sdf_mp_integration::PlanningServer::getCurrentStateUpdate(){
+    this->getCurrentPose(current_pose_, current_vel_);
 
-    double traj_error, new_traj_error, reinit_traj_error, old_err_improvement, reinit_err_improvement;
-    // Calculate which index variable node we're at
     ros::WallTime current_t = ros::WallTime::now();
-    ros::WallDuration dur = current_t - begin_t_;
+    traj_dur_ = current_t - begin_t_;
     task_dur_ = current_t - task_callback_start_t_;
 
-    // Get our current pose and velocity and record it
-    gpmp2::Pose2Vector start_pose;
-    gtsam::Vector start_vel(8);
-    this->getCurrentPose(start_pose, start_vel);
-    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
-    results_recorder_.recordActualTrajUpdate(task_dur_.toSec(), start_pose);
+    // Record the actual trajecory taken by the robot
+    results_recorder_.recordActualTrajUpdate(task_dur_.toSec(), current_pose_);
+}
 
-    // Calulate the time index we should be currently at for the last plan
-    double float_idx = dur.toSec()/delta_t_;
-    int idx = round(float_idx);
-    std::cout << "Current idx: " << idx  << "/" << total_time_step_ << std::endl;
-
-    // Check whether we're still on track with a new estimated time
+bool sdf_mp_integration::PlanningServer::isTrajectoryOnTime(){
+      // Check whether we're still on track with a new estimated time
     int est_time_steps;
     float est_time;
-    estimateSettings(start_pose, goal_state_, est_time, est_time_steps);
+    estimateSettings(current_pose_, goal_state_, est_time, est_time_steps);
 
     // Only if new estimated time is less than x% more than the reminaing time, we can consider keeping the same trajectory. 
-    float curr_t_remaining = total_time_ - (float) dur.toSec();
+    float curr_t_remaining = total_time_ - (float) traj_dur_.toSec();
 
-    std::cout << "New estimated time: " << est_time << "\t Curr t left: " << curr_t_remaining << "\t ratio: "<< est_time/curr_t_remaining << std::endl;
-    if( est_time < 1.2 * curr_t_remaining){
+    // std::cout << "New estimated time: " << est_time << "\t Curr t left: " << curr_t_remaining << "\t ratio: "<< est_time/curr_t_remaining << std::endl;
       
-      // Check if the path is still good
-      traj_error = graph_.error(traj_res_);    
-      bool stopped_bool = hasExecutionStopped();
+    return est_time < 1.2 * curr_t_remaining;
+}
 
-      if (stopped_bool)
-      {
-        num_stops++;
-      }
-      else{
-        num_stops = 0;
-      }
-      
-      if(last_traj_error < 1.5 * traj_error && last_traj_error >= traj_error && !collisionCheck(traj_res_) && !stopped_bool){
-          std::cout << "Using same trajectory."<< std::endl;
-          // sdf_mp_integration::Timer nbvTimer("PlanningNBVTimer");
-          if(idx > total_time_step_){
-            std::cout << "Index is greater that the total time steps!!" << std::endl;
-          }
+bool sdf_mp_integration::PlanningServer::isPathStillGood(){
+    double traj_error = graph_.error(traj_res_);    
+    bool path_bool = last_traj_error_ < 1.5 * traj_error && last_traj_error_ >= traj_error;
 
-          head_controller_->GetNextCameraPosition(traj_res_, head_state_, delta_t_, total_time_step_, idx);
-          // nbvTimer.Stop();
-        return;
-      }
+    return path_bool;
+}
 
-    }
+bool sdf_mp_integration::PlanningServer::replanTrajectory(gtsam::Values &refit_values, int idx){
 
-    std::cout << "Creating new trajectory" << std::endl;
-
+    // Note the old params to use for refitting
     double old_delta_t = delta_t_;
     double old_time_steps = total_time_step_;
 
-    estimateAndCreateSettings(start_pose, goal_state_);
+    // Get new estimates to create the factor graph
+    estimateAndCreateSettings(current_pose_, goal_state_);
 
     // New graph
     constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
                                       sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
                                       sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, goal_state_, end_vel);
+                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, goal_state_, gtsam::Vector::Zero(arm_dof_+3));
 
 
     // Reset timings
     last_idx_updated_ = 0;
     int iters;
 
-    gtsam::Values refit_values;
-    if (num_stops > 20)
+    if (num_stops_ > 20)
     {
       std::cout << "Appears to be stuck. Cancelling goals and starting planning using a straight line" << std::endl;
       cancelAllGoals();
@@ -465,39 +440,94 @@ void sdf_mp_integration::PlanningServer::replan(){
       ros::Duration(1).sleep();
       head_controller_->look(goal_state_.pose().x(), goal_state_.pose().y(), 0.0, "odom");
       ros::Duration(1).sleep();
-      refit_values = getInitTrajectory(start_pose, goal_state_);
+      refit_values = getInitTrajectory(current_pose_, goal_state_);
     }
     else{
-      refit_values = sdf_mp_integration::refitPose2MobileArmTraj(traj_res_, start_pose, start_vel, setting_.Qc_model, old_delta_t, delta_t_, old_time_steps, total_time_step_, idx);
+      refit_values = sdf_mp_integration::refitPose2MobileArmTraj(traj_res_, current_pose_, current_vel_, setting_.Qc_model, old_delta_t, delta_t_, old_time_steps, total_time_step_, idx);
     }
-    traj_res_ = this->optimize(refit_values, traj_error, iters);
+    traj_res_ = this->optimize(refit_values, last_traj_error_, iters);
 
-    sdf_mp_integration::Timer nbvTimer("PlanningNBVTimer");
+    // sdf_mp_integration::Timer nbvTimer("PlanningNBVTimer");
     head_controller_->GetNextCameraPosition(traj_res_, head_state_, delta_t_, total_time_step_, 2);
-    nbvTimer.Stop();
+    // nbvTimer.Stop();
 
     if(collisionCheck(traj_res_)){
 
-      if (num_stops > 20){
+      if (num_stops_ > 20){
         std::cout << "This should really be a recovery behaviour." << std::endl;
-        return;
       }
       else{
         std::cout << "Planned trajectory is in collision. Cancelling all current goals." << std::endl;
         cancelAllGoals();
-        return;
       }
+      return false;
+    }
+    else {
+      return true;
     }
 
-    visualiseInitialBasePlan(refit_values, total_time_step_);
 
-    begin_t_ = ros::WallTime::now();
-    last_traj_error = traj_error;
-    executeTrajectory(traj_res_, 0, 0.5);
-    results_recorder_.recordTrajUpdate(task_dur_.toSec(), total_time_step_, traj_res_);
 
-    visualiseTrajectory(traj_res_, total_time_step_);
+}
 
+void sdf_mp_integration::PlanningServer::replan(){
+  
+  if (!isTaskComplete())
+  {
+
+    double new_traj_error, reinit_traj_error, old_err_improvement, reinit_err_improvement;
+    // Calculate which index variable node we're at
+
+
+    // Get our current pose and velocity and record it
+    getCurrentStateUpdate();
+
+    // Calulate the time index we should be currently at for the last plan
+    int idx = round(traj_dur_.toSec()/delta_t_);
+    std::cout << "Current idx: " << idx  << "/" << total_time_step_ << std::endl;
+
+    bool stopped_bool = hasExecutionStopped();
+    if (stopped_bool) {num_stops_++;} else {num_stops_ = 0;}
+
+    bool onTime = isTrajectoryOnTime();
+    bool isPathGood = isPathStillGood(); 
+    bool inCollision = collisionCheck(traj_res_); 
+
+    // Check whether we're still on track with a new estimated time
+    if( onTime && isPathGood && !inCollision && !stopped_bool ){
+        std::cout << "Using same trajectory."<< std::endl;
+        if(idx > total_time_step_){
+          std::cout << "Index is greater that the total time steps!!" << std::endl;
+        }
+
+        // sdf_mp_integration::Timer nbvTimer("PlanningNBVTimer");
+        head_controller_->GetNextCameraPosition(traj_res_, head_state_, delta_t_, total_time_step_, idx);
+        // nbvTimer.Stop();
+    }
+    else{
+
+        std::cout << "Re-planning. OnTime: " << onTime
+                  << "\t GoodPath: " << isPathGood
+                  << "\t inCollision" << inCollision
+                  << "\t StoppedExec: " << stopped_bool << std::endl;
+
+        gtsam::Values refit_values;
+        bool col_free_traj = replanTrajectory(refit_values, idx);
+        visualiseInitialBasePlan(refit_values, total_time_step_);
+
+        if (col_free_traj){
+          std::cout << "Successfully replanned trajectory." << std::endl;
+          begin_t_ = ros::WallTime::now();
+          executeTrajectory(traj_res_, 0, 0.5);
+          results_recorder_.recordTrajUpdate(task_dur_.toSec(), total_time_step_, traj_res_);
+          visualiseTrajectory(traj_res_, total_time_step_);
+        }
+        else{
+          std::cout << "No new trajectory found." << std::endl;
+
+        }        
+
+    }
   } else{
     finishTaskCleanup();
   }
@@ -578,14 +608,11 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     std::cout << "Looking works" << std::endl;
     ros::Duration(2).sleep();
 
-    gpmp2::Pose2Vector start_pose;
-    gtsam::Vector start_vel(8);
-    this->getCurrentPose(start_pose, start_vel);
-    results_recorder_.recordActualTrajUpdate(0, start_pose);
+    getCurrentStateUpdate();
+    results_recorder_.recordActualTrajUpdate(0, current_pose_);
 
     // Get goal pose
     gtsam::Vector end_conf = sdf_mp_integration::SetHSRConf("go");
-    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
     tf::Quaternion q(msg->pose.orientation.x,
                     msg->pose.orientation.y,
                     msg->pose.orientation.z,
@@ -598,19 +625,20 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     goal_state_ = end_pose;
 
     // Determine how long the trajectory should be and how it should be split up
-    estimateAndCreateSettings(start_pose, end_pose);
+    estimateAndCreateSettings(current_pose_, end_pose);
 
     // sdf_mp_integration::Timer graphTimer("GraphConstruction");
 
+    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
     constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
                                       sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
                                       sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, end_pose, end_vel);
+                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, end_pose, end_vel);
     // graphTimer.Stop();
     // printFactorTimeline();
 
     // initial values
-    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose);
+    gtsam::Values init_values = getInitTrajectory(current_pose_, end_pose);
     visualiseInitialBasePlan(init_values, total_time_step_);
 
     if (replanning_)
@@ -618,9 +646,9 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
       last_idx_updated_ = 0;
 
       int iters;
-      traj_res_ = this->optimize(init_values, last_traj_error, iters);
+      traj_res_ = this->optimize(init_values, last_traj_error_, iters);
       results_recorder_.recordTrajUpdate(0.0, total_time_step_, traj_res_);
-      // last_traj_error = graph_.error(traj_res_);
+      // last_traj_error_ = graph_.error(traj_res_);
       // std::cout << "Initial iters: " << iters << std::endl;
       // sdf_mp_integration::Timer costsPrinterTimer("costsPrinterTimer");
       // printCosts(traj_res_);
@@ -668,10 +696,8 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
     arm_task_ = true;
     full_task_ = false;
 
-    gpmp2::Pose2Vector start_pose;
-    gtsam::Vector start_vel(8);
-    this->getCurrentPose(start_pose, start_vel);
-    results_recorder_.recordActualTrajUpdate(0, start_pose);
+    getCurrentStateUpdate();
+    results_recorder_.recordActualTrajUpdate(0, current_pose_);
 
     // Get goal pose
     gtsam::Vector end_conf(arm_dof_);
@@ -679,24 +705,24 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
     {
       end_conf[i] = msg->arm[i];
     }
-    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
-    gpmp2::Pose2Vector end_pose(start_pose.pose(), end_conf); // Same starting base pose
+    gpmp2::Pose2Vector end_pose(current_pose_.pose(), end_conf); // Same starting base pose
     goal_state_ = end_pose;
 
     // settings
     // Determine how long the trajectory should be and how it should be split up
-    estimateAndCreateSettings(start_pose, end_pose);
+    estimateAndCreateSettings(current_pose_, end_pose);
 
     // initial values
-    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose);
+    gtsam::Values init_values = getInitTrajectory(current_pose_, end_pose);
     visualiseInitialBasePlan(init_values, total_time_step_);
 
     sdf_mp_integration::Timer graphTimer("GraphConstruction");
 
+    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
     this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
                                       sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
                                       sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, end_pose, end_vel);
+                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, end_pose, end_vel);
     graphTimer.Stop();
 
     if (replanning_)
@@ -704,7 +730,7 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
       last_idx_updated_ = 0;
 
       traj_res_ = this->optimize(init_values);
-      last_traj_error = graph_.error(traj_res_);
+      last_traj_error_ = graph_.error(traj_res_);
       publishPlanMsg(traj_res_);
 
       // Start timer and execute
@@ -734,10 +760,8 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
     head_controller_->look(msg->base.pose.position.x, msg->base.pose.position.y, 0.0, "odom");
     // look(msg->base.pose.position.x, msg->base.pose.position.y, 0.5, "odom");
 
-    gpmp2::Pose2Vector start_pose;
-    gtsam::Vector start_vel(8);
-    this->getCurrentPose(start_pose, start_vel);
-    results_recorder_.recordActualTrajUpdate(0, start_pose);
+    getCurrentStateUpdate();
+    results_recorder_.recordActualTrajUpdate(0, current_pose_);
 
 
     // Get goal pose
@@ -747,7 +771,6 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
       end_conf[i] = msg->arm[i];
     }
 
-    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
     tf::Quaternion q(msg->base.pose.orientation.x,
                     msg->base.pose.orientation.y,
                     msg->base.pose.orientation.z,
@@ -760,20 +783,21 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
 
     // settings
     // Determine how long the trajectory should be and how it should be split up
-    estimateAndCreateSettings(start_pose, end_pose);
+    estimateAndCreateSettings(current_pose_, end_pose);
 
     // initial values
 
     sdf_mp_integration::Timer graphTimer("GraphConstruction");
 
+    gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
     this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
                                       sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
                                       sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, start_pose, start_vel, end_pose, end_vel);
+                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, end_pose, end_vel);
 
     graphTimer.Stop();
 
-    gtsam::Values init_values = getInitTrajectory(start_pose, end_pose);
+    gtsam::Values init_values = getInitTrajectory(current_pose_, end_pose);
     visualiseInitialBasePlan(init_values, total_time_step_);
 
     if (replanning_)
@@ -781,7 +805,7 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
       last_idx_updated_ = 0;
 
       traj_res_ = this->optimize(init_values);
-      last_traj_error = graph_.error(traj_res_);
+      last_traj_error_ = graph_.error(traj_res_);
       publishPlanMsg(traj_res_);
 
       // Start timer and execute

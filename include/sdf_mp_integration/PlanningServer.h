@@ -120,6 +120,10 @@ class PlanningServer{
       gtsam::Vector5 joint_state_, joint_v_state_;
       gtsam::Vector3 odom_state_, odom_v_state_;
       
+      gpmp2::Pose2Vector current_pose_;
+      gtsam::Vector current_vel_;
+;
+
       float head_state_[2] = {};
 
       gpmp2::Pose2MobileVetLinArmModel arm_;
@@ -139,7 +143,7 @@ class PlanningServer{
 
       gpmp2::Pose2Vector goal_state_;
       ros::WallTime begin_t_, task_callback_start_t_;
-      ros::WallDuration task_dur_; 
+      ros::WallDuration task_dur_, traj_dur_; 
       
       ros::Timer replan_timer_;
       std::vector<gtsam::Values> trajectory_evolution_;
@@ -152,10 +156,10 @@ class PlanningServer{
       tf::TransformBroadcaster br_;
       float last_yaw_ = 0;
       bool moving_ = false;
-      double last_traj_error;
+      double last_traj_error_;
       size_t goal_id_ = 0;
 
-      int num_stops = 0;
+      int num_stops_ = 0;
 
     public:
 
@@ -182,6 +186,7 @@ class PlanningServer{
       void jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg);
       void odomStateCallback(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg);
       void getCurrentPose(gpmp2::Pose2Vector &current_pose, gtsam::Vector &current_vel);
+      void getCurrentStateUpdate();
 
       void createSettings();
       void createSettings(float total_time, int total_time_step);
@@ -194,6 +199,10 @@ class PlanningServer{
       void replan(const ros::TimerEvent& /*event*/);
       void replan();
       void finishTaskCleanup();
+
+      bool isTrajectoryOnTime();
+      bool isPathStillGood();
+      bool replanTrajectory(gtsam::Values &refit_values, int idx);
 
       // void TestNBV();
       // void GetNBV(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind);

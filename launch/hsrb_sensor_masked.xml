@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<launch>
+
+
+  <node pkg="nodelet" type="nodelet" name="mark_nodelet_manager" args="manager" />
+
+  <node pkg="nodelet" type="nodelet" name="nodelet1"
+        args="load depth_image_proc/point_cloud_xyzrgb mark_nodelet_manager">
+    <!-- <remap from="camera_info" to="/hsrb/head_rgbd_sensor/depth_registered/camera_info"/> -->
+    <remap from="rgb/camera_info" to="/hsrb/head_rgbd_sensor/rgb/camera_info"/>
+    <!-- <remap from="image_rect" to="hsrb/head_rgbd_sensor/depth_registered/image_rect_raw"/> -->
+    <remap from="depth_registered/image_rect" to="/centermask2_depth_ros/static_depth_image"/>
+    <remap from="rgb/image_rect_color" to="/hsrb/head_rgbd_sensor/rgb/image_rect_color"/>
+    <!-- <remap from="points" to="/local_points"/> -->
+    <remap from="depth_registered/points" to="/local_points"/>
+  </node>
+
+  <!-- <node pkg="nodelet" type="nodelet" name="mark_pointclouds"
+        args="standalone depth_image_proc/convert_metric">    
+      <remap from="depth_registered/image_rect" to="head_rgbd_sensor/depth_registered/image_raw"/>
+      <remap from="image_raw" to="head_rgbd_sensor/depth_registered/image_raw"/>
+      <remap from="image" to="head_rgbd_sensor/depth_registered/image"/>
+  </node> -->
+
+</launch>
