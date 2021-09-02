@@ -41,6 +41,7 @@ include_directories(${GTSAM_INCLUDE_DIR})
 find_package(PCL 1.7 REQUIRED)
 find_package(OpenCV REQUIRED)
 
+find_package(ompl REQUIRED)
 
 add_definitions(
   ${gpu_voxels_DEFINITIONS}
@@ -62,6 +63,7 @@ include_directories(
   ${orocos_kdl_INCLUDE_DIRS}
   ${rospy_INCLUDE_DIRS}
   ${dgpmp2_INCLUDE_DIRS}
+  ${OMPL_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME}_lib
@@ -158,6 +160,7 @@ ${orocos_kdl_LIBRARIES}
 ${rospy_LIBRARIES}
 ${gpu_voxels_ros_LIBRARIES}
 ${dgpmp2_LIBRARIES}
+${OMPL_LIBRARIES}
 
 # ${PROJECT_NAME}_lib
 )

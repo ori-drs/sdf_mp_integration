@@ -524,7 +524,7 @@ void sdf_mp_integration::PlanningServer::replan(){
         }
         else{
           std::cout << "No new trajectory found." << std::endl;
-
+          // gpu_voxels_ptr_->getRecoveryPlan(epsilon_ + 0.27, 2.0, current_pose_.x(), current_pose_.y(), goal_state_.x(), goal_state_.y(), total_time_step_);
         }        
 
     }
@@ -626,6 +626,15 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
 
     // Determine how long the trajectory should be and how it should be split up
     estimateAndCreateSettings(current_pose_, end_pose);
+
+    // To test whether we can solve
+    gpu_voxels_ptr_->getRecoveryPlan(0.2, 
+                                    2.0, 
+                                      current_pose_.pose().x(), 
+                                      current_pose_.pose().y(), 
+                                      goal_state_.pose().x(), 
+                                      goal_state_.pose().y(), 
+                                      total_time_step_);
 
     // sdf_mp_integration::Timer graphTimer("GraphConstruction");
 
