@@ -628,13 +628,13 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     estimateAndCreateSettings(current_pose_, end_pose);
 
     // To test whether we can solve
-    gpu_voxels_ptr_->getRecoveryPlan(0.2, 
-                                    2.0, 
-                                      current_pose_.pose().x(), 
-                                      current_pose_.pose().y(), 
-                                      goal_state_.pose().x(), 
-                                      goal_state_.pose().y(), 
-                                      total_time_step_);
+    // gpu_voxels_ptr_->getRecoveryPlan(0.2, 
+    //                                 2.0, 
+    //                                   current_pose_.pose().x(), 
+    //                                   current_pose_.pose().y(), 
+    //                                   goal_state_.pose().x(), 
+    //                                   goal_state_.pose().y(), 
+    //                                   total_time_step_);
 
     // sdf_mp_integration::Timer graphTimer("GraphConstruction");
 

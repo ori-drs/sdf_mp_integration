@@ -87,8 +87,11 @@ if __name__ == '__main__':
 
                         1: [np.array([[-1.0, -1.0, 0.0, 0.0], 
                                         [1.0, -1.0, 0.0, 27.0], 
-                                        [3.0, -1.0, 0.0, 47.0]], dtype=float)]
+                                        [3.0, -1.0, 0.0, 47.0]], dtype=float)], # This is the original dynamic experiment
                         
+                        2: [np.array([[-1.0, -1.0, 0.0, 0.0], 
+                                        [0.0, -1.0, 0.0, 15.0], 
+                                        [3.0, 2.0, 0.0, 55.0]], dtype=float)],                    
                         }
 
 

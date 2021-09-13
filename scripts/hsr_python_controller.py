@@ -22,6 +22,7 @@ class HSRPythonController():
         #     print("Python controller moving head to [{0}, {1}]".format(msg.pan_joint_state, msg.tilt_joint_state))
         #     self.whole_body.move_to_joint_positions({'head_tilt_joint': msg.tilt_joint_state, 'head_pan_joint': msg.pan_joint_state })
         # else:
+        rospy.loginfo("Received gaze command - changing the gaze...")
         try:
             self.whole_body.gaze_point(geometry.vector3(msg.pt.x, msg.pt.y, msg.pt.z), msg.frame)
         except Exception:
