@@ -73,8 +73,8 @@ namespace sdf_mp_integration {
   //   }
   // }
 
-
-  inline double hingeLossObstacleCost(const gtsam::Point3& point, const sdf_mp_integration::SDFHandler<GPUVoxelsPtr> sdf_handler,
+  template <typename SDFPACKAGEPTR>
+  inline double hingeLossObstacleCost(const gtsam::Point3& point, const sdf_mp_integration::SDFHandler<SDFPACKAGEPTR> sdf_handler,
       double eps, gtsam::OptionalJacobian<1, 3> H_point = boost::none) {
 
     gtsam::Vector3 field_gradient;

@@ -26,8 +26,9 @@
 // #include <voxblox_ros/ros_params.h>
 // #include <voxblox_ros/esdf_server.h>
 
-#include <gpu_voxels_ros/gpu_voxels_server.h>
+// #include <gpu_voxels_ros/gpu_voxels_server.h>
 #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
+#include <gpu_voxels_ros/live_composite_sdf.h>
 
 #pragma once
 
@@ -39,7 +40,8 @@
 // typedef gpu_voxels_ros::GPUVoxelsServer GPUVoxelsClass;
 typedef gpu_voxels_ros::GPUVoxelsHSRServer* GPUVoxelsPtr;
 typedef gpu_voxels_ros::GPUVoxelsHSRServer GPUVoxelsClass;
-
+typedef gpu_voxels_ros::LiveCompositeSDF* LiveCompositeSDFPtr;
+typedef gpu_voxels_ros::LiveCompositeSDF LiveCompositeSDFClass;
 
 namespace sdf_mp_integration {
 
@@ -48,6 +50,7 @@ namespace sdf_mp_integration {
 
     private:
       SDFPACKAGEPTR sdf_package_ptr_;
+      size_t t_index_;
     public:
       
       //  constructor
@@ -55,6 +58,11 @@ namespace sdf_mp_integration {
       
       SDFHandler(SDFPACKAGEPTR sdf_package_ptr) {
         sdf_package_ptr_ = sdf_package_ptr;
+      }
+
+      SDFHandler(SDFPACKAGEPTR sdf_package_ptr, size_t t_index) {
+        sdf_package_ptr_ = sdf_package_ptr;
+        t_index_ = t_index;
       }
 
       ~SDFHandler() {}

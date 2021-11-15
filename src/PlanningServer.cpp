@@ -7,7 +7,8 @@
 
 #include <sdf_mp_integration/PlanningServer.h>
 
-sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  base_traj_ac_("/hsrb/omni_base_controller/follow_joint_trajectory", true), 
+template <typename SDFPACKAGEPTR>
+sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::PlanningServer(ros::NodeHandle node) :  base_traj_ac_("/hsrb/omni_base_controller/follow_joint_trajectory", true), 
                                                                             execute_arm_ac_("/hsrb/arm_trajectory_controller/follow_joint_trajectory", true),
                                                                             current_vel_(8)
 
@@ -52,9 +53,26 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  base
     ROS_INFO("execute_arm_ac_ ready.");
 
     // // Start the mapping
-    gpu_voxels_ptr_ = new gpu_voxels_ros::GPUVoxelsHSRServer(node_);
-    sdf_handler_ = new sdf_mp_integration::SDFHandler<GPUVoxelsPtr>(gpu_voxels_ptr_);
-    head_controller_ = new sdf_mp_integration::HeadController(node_, gpu_voxels_ptr_, delta_t_, head_behaviour_);
+    num_sdfs_ = 10;
+
+    this->initGPUVoxels();
+
+    // if (std::is_same<SDFPACKAGEPTR, gpu_voxels_ros::GPUVoxelsHSRServer*>::value){
+    //   gpu_voxels_ptr_ = new gpu_voxels_ros::GPUVoxelsHSRServer(node_);
+    //   sdf_handler_ = new sdf_mp_integration::SDFHandler<GPUVoxelsPtr>(gpu_voxels_ptr_);
+    // }
+    // else if(std::is_same<SDFPACKAGEPTR, gpu_voxels_ros::LiveCompositeSDF*>::value){
+    //   gpu_voxels_ptr_ =  new gpu_voxels_ros::LiveCompositeSDF(node_);
+    //   composite_sdf_handlers_  = std::vector<sdf_mp_integration::SDFHandler<LiveCompositeSDFPtr>*>(num_sdfs_);
+    //   for (size_t i = 0; i < num_sdfs_; i++)
+    //   {
+    //     composite_sdf_handlers_[i] = new sdf_mp_integration::SDFHandler<LiveCompositeSDFPtr>(gpu_voxels_ptr_, i);
+    //   }
+    // }
+
+    // gpu_voxels_live_composite_sdf_ptr_ = new gpu_voxels_ros::LiveCompositeSDF(node_);
+    
+    head_controller_ = new sdf_mp_integration::HeadController<SDFPACKAGEPTR>(node_, gpu_voxels_ptr_, delta_t_, head_behaviour_);
 
     moveToGo();
     head_controller_->look(1.5,0.0,0.0, "base_footprint");
@@ -67,14 +85,34 @@ sdf_mp_integration::PlanningServer::PlanningServer(ros::NodeHandle node) :  base
 
 };
 
-void sdf_mp_integration::PlanningServer::moveToGo(){
+template <>
+void sdf_mp_integration::PlanningServer<GPUVoxelsPtr>::initGPUVoxels(){
+    std::cout << "Initialised GPUVoxelsHSRServer." << std::endl;
+    gpu_voxels_ptr_ = new gpu_voxels_ros::GPUVoxelsHSRServer(node_);
+    sdf_handler_ = new sdf_mp_integration::SDFHandler<GPUVoxelsPtr>(gpu_voxels_ptr_); 
+}
+
+template <>
+void sdf_mp_integration::PlanningServer<LiveCompositeSDFPtr>::initGPUVoxels(){
+    std::cout << "Initialised LiveCompositeSDF." << std::endl;
+    gpu_voxels_ptr_ =  new gpu_voxels_ros::LiveCompositeSDF(node_);
+    composite_sdf_handlers_  = std::vector<sdf_mp_integration::SDFHandler<LiveCompositeSDFPtr>*>(num_sdfs_);
+    for (size_t i = 0; i < num_sdfs_; i++)
+    {
+      composite_sdf_handlers_[i] = new sdf_mp_integration::SDFHandler<LiveCompositeSDFPtr>(gpu_voxels_ptr_, i);
+    }
+}
+
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::moveToGo(){
   std_msgs::String msg;
   msg.data = "";
   hsr_python_move_pub_.publish(msg);
   std::cout << "Move to go msg sent..." << std::endl;
 }
 
-gtsam::Values sdf_mp_integration::PlanningServer::getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose){
+template <typename SDFPACKAGEPTR>
+gtsam::Values sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose){
 
     gtsam::Vector avg_vel = gtsam::Vector::Zero(arm_dof_+3);
     avg_vel[0] = (end_pose.pose().x()-start_pose.pose().x()) / (total_time_step_ * delta_t_);
@@ -107,7 +145,47 @@ gtsam::Values sdf_mp_integration::PlanningServer::getInitTrajectory(const gpmp2:
     return init_values;
 }
 
-void sdf_mp_integration::PlanningServer::reinitTrajectoryRemainder(gtsam::Values &traj_before, const size_t current_ind){
+template <typename SDFPACKAGEPTR>
+gtsam::Values sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::getRandomBaseInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose, const double max_variance){
+
+    gtsam::Vector avg_vel = gtsam::Vector::Zero(arm_dof_+3);
+    avg_vel[0] = (end_pose.pose().x()-start_pose.pose().x()) / (total_time_step_ * delta_t_);
+    avg_vel[1] = (end_pose.pose().y()-start_pose.pose().y()) / (total_time_step_ * delta_t_);
+    avg_vel[2] = (end_pose.pose().theta()-start_pose.pose().theta()) / (total_time_step_ * delta_t_);
+    for (size_t i = 0; i < arm_dof_; i++)
+    {
+      avg_vel[i+3] = (end_pose.configuration()[i] - start_pose.configuration()[i]) / (total_time_step_ * delta_t_);
+    }
+
+    gtsam::Values init_values;
+
+    double divisor = 100.0 / max_variance;
+
+    for (size_t i = 0; i < total_time_step_; i++)
+    {
+        gtsam::Symbol key_pos = gtsam::Symbol('x', i);
+        gtsam::Symbol key_vel = gtsam::Symbol('v', i);
+        
+        double rand_x = rand() % 100 + 1 / divisor;
+        double rand_y = rand() % 100 + 1 / divisor;
+
+        // initialize as straight line in conf space
+        gtsam::Vector conf = start_pose.configuration() * (total_time_step_-i)/total_time_step_ + end_pose.configuration() * i/total_time_step_;
+        
+        gtsam::Pose2 pose(start_pose.pose().x() * (total_time_step_-i)/total_time_step_ + end_pose.pose().x() * i/total_time_step_ + rand_x, 
+                          start_pose.pose().y() * (total_time_step_-i)/total_time_step_ + end_pose.pose().y() * i/total_time_step_ + rand_y, 
+                          start_pose.pose().theta() * (total_time_step_-i)/total_time_step_ + end_pose.pose().theta() * i/total_time_step_
+        );
+
+        // gtsam::insertPose2VectorInValues(key_pos, gpmp2::Pose2Vector(pose, conf), init_values);
+        init_values.insert(key_pos, gpmp2::Pose2Vector(pose, conf));
+        init_values.insert(key_vel, avg_vel);
+    }
+    return init_values;
+}
+
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::reinitTrajectoryRemainder(gtsam::Values &traj_before, const size_t current_ind){
 
     gtsam::Symbol curr_key_pos = gtsam::Symbol('x', current_ind);
     gtsam::Symbol end_key_pos = gtsam::Symbol('x', total_time_step_ - 1);
@@ -146,14 +224,16 @@ void sdf_mp_integration::PlanningServer::reinitTrajectoryRemainder(gtsam::Values
 
 }
 
-void sdf_mp_integration::PlanningServer::reinitTrajectory(gtsam::Values &traj){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::reinitTrajectory(gtsam::Values &traj){
   
   gpmp2::Pose2Vector start_pose = traj.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', 0));
   traj = getInitTrajectory(start_pose, goal_state_);
 
 }
 
-void sdf_mp_integration::PlanningServer::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
 {
     joint_state_[0] = msg->position[arm_lift_joint_ind];
     joint_state_[1] = msg->position[arm_flex_joint_ind];
@@ -171,7 +251,8 @@ void sdf_mp_integration::PlanningServer::jointStateCallback(const sensor_msgs::J
     head_state_[1] = msg->position[tilt_joint_ind];
 };
 
-void sdf_mp_integration::PlanningServer::odomStateCallback(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg)
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::odomStateCallback(const control_msgs::JointTrajectoryControllerState::ConstPtr& msg)
 {
     odom_state_[0] = msg->actual.positions[odom_x_ind];
     odom_state_[1] = msg->actual.positions[odom_y_ind];
@@ -204,7 +285,8 @@ void sdf_mp_integration::PlanningServer::odomStateCallback(const control_msgs::J
 
 };
 
-void sdf_mp_integration::PlanningServer::createSettings(float total_time, int total_time_step){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::createSettings(float total_time, int total_time_step){
     total_time_step_ = total_time_step;
     total_time_ = total_time;
     node_.param<float>("epsilon", epsilon_, 0.5);
@@ -269,14 +351,16 @@ void sdf_mp_integration::PlanningServer::createSettings(float total_time, int to
     // setting_.set_max_iter(10);
 }
 
-void sdf_mp_integration::PlanningServer::createSettings(){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::createSettings(){
 
     node_.param<int>("total_time_step", total_time_step_, 51);
     node_.param<float>("total_time", total_time_, 20.0);
     createSettings(total_time_, total_time_step_);
 }
 
-void sdf_mp_integration::PlanningServer::getCurrentPose(gpmp2::Pose2Vector &current_pose, gtsam::Vector &current_vel){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::getCurrentPose(gpmp2::Pose2Vector &current_pose, gtsam::Vector &current_vel){
     
     gtsam::Pose2 base_pose2(odom_state_[0], odom_state_[1], odom_state_[2]);
 
@@ -293,7 +377,8 @@ void sdf_mp_integration::PlanningServer::getCurrentPose(gpmp2::Pose2Vector &curr
     current_vel[7] = joint_v_state_[4];
 }
 
-void sdf_mp_integration::PlanningServer::updateState(int idx){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::updateState(int idx){
   // Adds prior factors to the factor graph to say where we are now
 
   gpmp2::Pose2Vector current_pose;
@@ -305,7 +390,8 @@ void sdf_mp_integration::PlanningServer::updateState(int idx){
   graph_.add(gtsam::PriorFactor<gtsam::Vector>(gtsam::Symbol('v', idx), current_vel, setting_.vel_prior_model));
 }
 
-bool sdf_mp_integration::PlanningServer::isTaskComplete(){
+template <typename SDFPACKAGEPTR>
+bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::isTaskComplete(){
   // Check if we are within tolerance of the goal state
 
 
@@ -343,7 +429,8 @@ bool sdf_mp_integration::PlanningServer::isTaskComplete(){
 
 };
 
-bool sdf_mp_integration::PlanningServer::collisionCheck(const gtsam::Values &traj){
+template <typename SDFPACKAGEPTR>
+bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::collisionCheck(const gtsam::Values &traj){
 
   bool isCollide = false;
   size_t interp_steps = 5;
@@ -354,19 +441,24 @@ bool sdf_mp_integration::PlanningServer::collisionCheck(const gtsam::Values &tra
   // Get a single obstacle factor from the graph to carry out the evaluation  
   // gtsam::FactorGraph<sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>>::sharedFactor fact_ptr = graph_.at(factor_index_dict_["obstacle"][0][0]);
   gtsam::NonlinearFactor::shared_ptr fact_ptr = graph_.at(factor_index_dict_["obstacle"][0][0]);
-  sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>::shared_ptr conv_fact_ptr = boost::static_pointer_cast<sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>>(fact_ptr);
+  typename sdf_mp_integration::ObstacleFactor<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel>::shared_ptr conv_fact_ptr = 
+                                                  boost::static_pointer_cast<sdf_mp_integration::ObstacleFactor<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel>>(fact_ptr);
 
   // Loop through each time-step in the trajectory to check for a collision
+  // std::cout << "Collisions at steps:" << std::endl;
   for (size_t i = 0; i < (total_time_step_-1)*(interp_steps+1) + 1; i++){   
     gpmp2::Pose2Vector pose = interp_traj.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', i));
     isCollide = isCollide || conv_fact_ptr->isInCollision(pose);
+    // std::cout << conv_fact_ptr->isInCollision(pose) << ", ";
   }
+  // std::cout << std::endl;
 
   return isCollide;
 
 }
 
-void sdf_mp_integration::PlanningServer::finishTaskCleanup(){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::finishTaskCleanup(){
     replan_timer_.stop();
     std::cout << "Finished re-planning - goal reached!" << std::endl;
     float map_coverage = gpu_voxels_ptr_->getPercentageMapExplored();
@@ -380,7 +472,8 @@ void sdf_mp_integration::PlanningServer::finishTaskCleanup(){
     head_controller_->lookForwards();   
 }
 
-void sdf_mp_integration::PlanningServer::getCurrentStateUpdate(){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::getCurrentStateUpdate(){
     this->getCurrentPose(current_pose_, current_vel_);
 
     ros::WallTime current_t = ros::WallTime::now();
@@ -391,7 +484,8 @@ void sdf_mp_integration::PlanningServer::getCurrentStateUpdate(){
     results_recorder_.recordActualTrajUpdate(task_dur_.toSec(), current_pose_);
 }
 
-bool sdf_mp_integration::PlanningServer::isTrajectoryOnTime(){
+template <typename SDFPACKAGEPTR>
+bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::isTrajectoryOnTime(){
       // Check whether we're still on track with a new estimated time
     int est_time_steps;
     float est_time;
@@ -405,14 +499,16 @@ bool sdf_mp_integration::PlanningServer::isTrajectoryOnTime(){
     return est_time < 1.2 * curr_t_remaining;
 }
 
-bool sdf_mp_integration::PlanningServer::isPathStillGood(){
+template <typename SDFPACKAGEPTR>
+bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::isPathStillGood(){
     double traj_error = graph_.error(traj_res_);    
     bool path_bool = last_traj_error_ < 1.5 * traj_error && last_traj_error_ >= traj_error;
 
     return path_bool;
 }
 
-bool sdf_mp_integration::PlanningServer::replanTrajectory(gtsam::Values &refit_values, int idx){
+template <typename SDFPACKAGEPTR>
+bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::replanTrajectory(gtsam::Values &refit_values, int idx){
 
     // Note the old params to use for refitting
     double old_delta_t = delta_t_;
@@ -422,9 +518,14 @@ bool sdf_mp_integration::PlanningServer::replanTrajectory(gtsam::Values &refit_v
     estimateAndCreateSettings(current_pose_, goal_state_);
 
     // New graph
-    constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
-                                      sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
-                                      sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+    // constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
+    //                                   sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
+    //                                   sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+    //                                   gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, goal_state_, gtsam::Vector::Zero(arm_dof_+3));
+
+    constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<SDFPACKAGEPTR>, 
+                                      sdf_mp_integration::ObstacleFactor<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel>, 
+                                      sdf_mp_integration::ObstacleFactorGP<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
                                       gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, goal_state_, gtsam::Vector::Zero(arm_dof_+3));
 
 
@@ -470,7 +571,8 @@ bool sdf_mp_integration::PlanningServer::replanTrajectory(gtsam::Values &refit_v
 
 }
 
-void sdf_mp_integration::PlanningServer::replan(){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::replan(){
   
   if (!isTaskComplete())
   {
@@ -534,16 +636,18 @@ void sdf_mp_integration::PlanningServer::replan(){
 
 }
 
-void sdf_mp_integration::PlanningServer::replan(const ros::TimerEvent& /*event*/){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::replan(const ros::TimerEvent& /*event*/){
   replan_mtx.lock();
   sdf_mp_integration::Timer replanTimer("replan");
   replan();
   replanTimer.Stop();
-  // sdf_mp_integration::Timing::Print(std::cout);
+  sdf_mp_integration::Timing::Print(std::cout);
   replan_mtx.unlock();
 }
 
-void sdf_mp_integration::PlanningServer::estimateAndCreateSettings(const gpmp2::Pose2Vector& start_pose, const gpmp2::Pose2Vector& goal_pose){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::estimateAndCreateSettings(const gpmp2::Pose2Vector& start_pose, const gpmp2::Pose2Vector& goal_pose){
 
   float est_traj_dist, est_traj_time;
   int est_steps;
@@ -569,7 +673,8 @@ void sdf_mp_integration::PlanningServer::estimateAndCreateSettings(const gpmp2::
 
 }
 
-void sdf_mp_integration::PlanningServer::estimateSettings(const gpmp2::Pose2Vector& start_pose, const gpmp2::Pose2Vector& goal_pose, float& est_traj_time, int& est_steps){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::estimateSettings(const gpmp2::Pose2Vector& start_pose, const gpmp2::Pose2Vector& goal_pose, float& est_traj_time, int& est_steps){
 
   float est_traj_dist;
 
@@ -592,7 +697,8 @@ void sdf_mp_integration::PlanningServer::estimateSettings(const gpmp2::Pose2Vect
 
 }
 
-void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::baseGoalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 
     // this->TestNBV();
 
@@ -639,10 +745,14 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
     // sdf_mp_integration::Timer graphTimer("GraphConstruction");
 
     gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
-    constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
-                                      sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
-                                      sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
-                                      gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, end_pose, end_vel);
+    // constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
+    //                                   sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
+    //                                   sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+    //                                   gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, end_pose, end_vel);
+    constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<SDFPACKAGEPTR>, 
+                                    sdf_mp_integration::ObstacleFactor<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel>, 
+                                    sdf_mp_integration::ObstacleFactorGP<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+                                    gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, end_pose, end_vel);
     // graphTimer.Stop();
     // printFactorTimeline();
 
@@ -678,7 +788,7 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
       visualiseBasePlan(traj_res_, total_time_step_);
 
       std::cout << "Executing. Now starting replan timer for every: " << round(1.0/0.1) << "Hz" << std::endl;
-      replan_timer_ = node_.createTimer(ros::Duration(0.1), &sdf_mp_integration::PlanningServer::replan, this);
+      replan_timer_ = node_.createTimer(ros::Duration(0.1), &sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::replan, this);
     }
     else{
       
@@ -697,7 +807,8 @@ void sdf_mp_integration::PlanningServer::baseGoalCallback(const geometry_msgs::P
 
 };
 
-void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::armGoalCallback(const sdf_mp_integration::ArmPose::ConstPtr& msg){
 
     task_callback_start_t_ = ros::WallTime::now();
 
@@ -728,9 +839,13 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
     sdf_mp_integration::Timer graphTimer("GraphConstruction");
 
     gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
-    this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
-                                      sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
-                                      sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+    // this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
+    //                                   sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
+    //                                   sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+    //                                   gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, end_pose, end_vel);
+    this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<SDFPACKAGEPTR>, 
+                                      sdf_mp_integration::ObstacleFactor<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel>, 
+                                      sdf_mp_integration::ObstacleFactorGP<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
                                       gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, end_pose, end_vel);
     graphTimer.Stop();
 
@@ -748,7 +863,7 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
       results_recorder_.recordTrajUpdate(0.0, total_time_step_, traj_res_);
 
       std::cout << "Executing. Now starting replan timer for every: " << round(1.0/0.2) << "Hz" << std::endl;
-      replan_timer_ = node_.createTimer(ros::Duration(0.2), &sdf_mp_integration::PlanningServer::replan, this);
+      replan_timer_ = node_.createTimer(ros::Duration(0.2), &sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::replan, this);
     }
     else{
       
@@ -758,7 +873,8 @@ void sdf_mp_integration::PlanningServer::armGoalCallback(const sdf_mp_integratio
     }
 };
 
-void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::fullGoalCallback(const sdf_mp_integration::WholeBodyPose::ConstPtr& msg){
 
     task_callback_start_t_ = ros::WallTime::now();
     base_task_ = false;
@@ -799,10 +915,15 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
     sdf_mp_integration::Timer graphTimer("GraphConstruction");
 
     gtsam::Vector end_vel = gtsam::Vector::Zero(arm_dof_+3);
-    this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
-                                      sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
-                                      sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+    // this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<GPUVoxelsPtr>, 
+    //                                   sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>, 
+    //                                   sdf_mp_integration::ObstacleFactorGP<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
+    //                                   gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, end_pose, end_vel);
+    this->constructGraph<gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessPriorPose2Vector, sdf_mp_integration::SDFHandler<SDFPACKAGEPTR>, 
+                                      sdf_mp_integration::ObstacleFactor<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel>, 
+                                      sdf_mp_integration::ObstacleFactorGP<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel, gpmp2::GaussianProcessInterpolatorPose2Vector> , 
                                       gpmp2::JointLimitFactorPose2Vector, gpmp2::VelocityLimitFactorVector>(arm_, current_pose_, current_vel_, end_pose, end_vel);
+
 
     graphTimer.Stop();
 
@@ -824,7 +945,7 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
       results_recorder_.recordTrajUpdate(0.0, total_time_step_, traj_res_);
 
       std::cout << "Executing. Now starting replan timer for every: " << round(1.0/0.2) << "Hz" << std::endl;
-      replan_timer_ = node_.createTimer(ros::Duration(0.2), &sdf_mp_integration::PlanningServer::replan, this);
+      replan_timer_ = node_.createTimer(ros::Duration(0.2), &sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::replan, this);
     }
     else{
       
@@ -840,7 +961,8 @@ void sdf_mp_integration::PlanningServer::fullGoalCallback(const sdf_mp_integrati
     }
 };
 
-void sdf_mp_integration::PlanningServer::publishPlanMsg(const gtsam::Values& plan) const{
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::publishPlanMsg(const gtsam::Values& plan) const{
     sdf_mp_integration::GtsamValues plan_msg;
     plan_msg.delta_t = delta_t_;
 
@@ -872,7 +994,8 @@ void sdf_mp_integration::PlanningServer::publishPlanMsg(const gtsam::Values& pla
     plan_msg_pub_.publish(plan_msg);
 };
 
-void sdf_mp_integration::PlanningServer::visualiseInitialBasePlan(const gtsam::Values& plan, const size_t num_keys) const{
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::visualiseInitialBasePlan(const gtsam::Values& plan, const size_t num_keys) const{
     nav_msgs::Path path;
     path.header.frame_id = "odom";
 
@@ -902,7 +1025,8 @@ void sdf_mp_integration::PlanningServer::visualiseInitialBasePlan(const gtsam::V
     init_path_pub_.publish(path);
 };
 
-void sdf_mp_integration::PlanningServer::visualiseTrajectory(const gtsam::Values& plan, const size_t num_keys) const{
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::visualiseTrajectory(const gtsam::Values& plan, const size_t num_keys) const{
       if(base_task_ || full_task_){
         visualiseBasePlan(plan, num_keys);
       }
@@ -911,7 +1035,8 @@ void sdf_mp_integration::PlanningServer::visualiseTrajectory(const gtsam::Values
       }
 };
 
-void sdf_mp_integration::PlanningServer::visualiseBasePlan(const gtsam::Values& plan, const size_t num_keys) const{
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::visualiseBasePlan(const gtsam::Values& plan, const size_t num_keys) const{
     nav_msgs::Path path;
     path.header.frame_id = "odom";
 
@@ -940,7 +1065,8 @@ void sdf_mp_integration::PlanningServer::visualiseBasePlan(const gtsam::Values& 
     path_pub_.publish(path);
 };
 
-bool sdf_mp_integration::PlanningServer::hasExecutionStopped() const{
+template <typename SDFPACKAGEPTR>
+bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::hasExecutionStopped() const{
 
   // PENDING=0, ACTIVE=1, PREEMPTED=2, SUCCEEDED=3, ABORTED=4, 
   // REJECTED=5, PREEMPTING=6, RECALLING=7, RECALLED=8, LOST=9
@@ -966,12 +1092,14 @@ bool sdf_mp_integration::PlanningServer::hasExecutionStopped() const{
 
 }
 
-void sdf_mp_integration::PlanningServer::cancelAllGoals(){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::cancelAllGoals(){
   base_traj_ac_.cancelAllGoals();
   execute_arm_ac_.cancelAllGoals();
 }
 
-void sdf_mp_integration::PlanningServer::executeTrajectory(const gtsam::Values& plan, const size_t current_ind, const double t_delay) {
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::executeTrajectory(const gtsam::Values& plan, const size_t current_ind, const double t_delay) {
 
   size_t interp_steps = 2;
 
@@ -995,7 +1123,8 @@ void sdf_mp_integration::PlanningServer::executeTrajectory(const gtsam::Values& 
 
 };
 
-void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind, const double t_delay) {
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::executeBaseTrajectory(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind, const double t_delay) {
     control_msgs::FollowJointTrajectoryGoal trajectory_goal;
     // trajectory_goal.trajectory.header.stamp = ros::Time::now();
     trajectory_goal.trajectory.header.frame_id = "odom";
@@ -1032,7 +1161,8 @@ void sdf_mp_integration::PlanningServer::executeBaseTrajectory(const gtsam::Valu
 
 };
 
-void sdf_mp_integration::PlanningServer::executeArmPlan(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind, const double t_delay) {
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::executeArmPlan(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind, const double t_delay) {
     control_msgs::FollowJointTrajectoryGoal arm_goal;
 
     arm_goal.trajectory.joint_names.push_back("arm_lift_joint");      
@@ -1071,7 +1201,8 @@ void sdf_mp_integration::PlanningServer::executeArmPlan(const gtsam::Values& pla
 
 };
 
-void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind, const double t_delay) {
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::executeFullPlan(const gtsam::Values& plan, const double delta_t, const size_t num_keys, const size_t current_ind, const double t_delay) {
     control_msgs::FollowJointTrajectoryGoal arm_goal;
     control_msgs::FollowJointTrajectoryGoal path_goal;
 
@@ -1131,7 +1262,8 @@ void sdf_mp_integration::PlanningServer::executeFullPlan(const gtsam::Values& pl
 
 };
 
-void sdf_mp_integration::PlanningServer::printCosts(const gtsam::Values& traj){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::printCosts(const gtsam::Values& traj){
 
   std:vector<std::string> factor_types = {"prior", "obstacle", "gp_obstacle", "gp", "pos", "vel"};
 
@@ -1167,7 +1299,8 @@ void sdf_mp_integration::PlanningServer::printCosts(const gtsam::Values& traj){
   }
 }
 
-void sdf_mp_integration::PlanningServer::printFactorTimeline(){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::printFactorTimeline(){
 
   std:vector<std::string> factor_types = {"prior", "obstacle", "gp_obstacle", "gp", "pos", "vel"};
 
@@ -1197,9 +1330,10 @@ void sdf_mp_integration::PlanningServer::printFactorTimeline(){
   
 }
 
-template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
+template <>
+template<class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
     class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
-void sdf_mp_integration::PlanningServer::constructGraph(
+void sdf_mp_integration::PlanningServer<GPUVoxelsPtr>::constructGraph(
     const ROBOT& arm,
     const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
     const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel) {
@@ -1313,7 +1447,146 @@ void sdf_mp_integration::PlanningServer::constructGraph(
 
 }
 
-gtsam::Values sdf_mp_integration::PlanningServer::optimize(const gtsam::Values& init_values){
+template <>
+template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
+    class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
+void sdf_mp_integration::PlanningServer<LiveCompositeSDFPtr>::constructGraph(
+    const ROBOT& arm,
+    const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
+    const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel) {
+
+  // using namespace gtsam;
+
+  graph_ = gtsam::NonlinearFactorGraph();
+
+  // For bookkeeping storage of factors
+  factor_index_dict_ = {
+                          { "prior", std::vector<std::vector<size_t>>(setting_.total_step + 1) },
+                          { "obstacle", std::vector<std::vector<size_t>>(setting_.total_step + 1) },
+                          { "gp_obstacle", std::vector<std::vector<size_t>>(setting_.total_step + 1) },
+                          { "pos", std::vector<std::vector<size_t>>(setting_.total_step + 1) },
+                          { "vel", std::vector<std::vector<size_t>>(setting_.total_step + 1) },
+                          { "gp", std::vector<std::vector<size_t>>(setting_.total_step + 1) }
+                        };
+
+  // fact_indices_ = std::vector<std::tuple< std::vector<size_t>, std::vector<size_t> > >(problem_setup_.total_time_step_ + 1);
+
+  // GP interpolation setting
+  const double delta_t = setting_.total_time / static_cast<double>(setting_.total_step);
+  const double inter_dt = delta_t / static_cast<double>(setting_.obs_check_inter + 1);
+  
+  int factor_ind_counter = 0;
+
+  for (size_t i = 0; i < setting_.total_step; i++) {
+    gtsam::Key pose_key = gtsam::Symbol('x', i);
+    gtsam::Key vel_key = gtsam::Symbol('v', i);
+
+    std::vector<size_t> obs_fact_indices_in_timestep;
+    std::vector<size_t> gp_obs_fact_indices_in_timestep;
+    std::vector<size_t> gp_fact_indices_in_timestep;
+    std::vector<size_t> prior_fact_indices_in_timestep;
+    std::vector<size_t> vel_fact_indices_in_timestep;
+    std::vector<size_t> pos_fact_indices_in_timestep;
+
+    // start and end
+    if (i == 0) {
+
+      prior_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Pose>(pose_key, start_conf, setting_.conf_prior_model));
+      factor_ind_counter += 1;
+
+      prior_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Velocity>(vel_key, start_vel, setting_.vel_prior_model));
+      factor_ind_counter += 1;
+
+    } else if (i == setting_.total_step - 1) {
+      prior_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Pose>(pose_key, end_conf, setting_.conf_prior_model));
+      factor_ind_counter += 1;
+      
+      prior_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Velocity>(vel_key, end_vel, setting_.vel_prior_model));
+      factor_ind_counter += 1;
+    }
+
+    if (setting_.flag_pos_limit) {
+      // joint position limits
+      pos_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(LIMIT_FACTOR_POS(pose_key, setting_.pos_limit_model, setting_.joint_pos_limits_down, 
+          setting_.joint_pos_limits_up, setting_.pos_limit_thresh));
+      factor_ind_counter += 1;
+    }
+    if (setting_.flag_vel_limit) {
+      // velocity limits
+      vel_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(LIMIT_FACTOR_VEL(vel_key, setting_.vel_limit_model, setting_.vel_limits, 
+          setting_.vel_limit_thresh));
+      factor_ind_counter += 1;
+    }
+
+    // non-interpolated cost factor
+    obs_fact_indices_in_timestep.push_back(factor_ind_counter);
+    
+    if(i < num_sdfs_){
+      graph_.add(OBS_FACTOR(pose_key, arm, *(composite_sdf_handlers_[i]), setting_.cost_sigma, setting_.epsilon));
+    }
+    else{
+      graph_.add(OBS_FACTOR(pose_key, arm, *(composite_sdf_handlers_[0]), setting_.cost_sigma, setting_.epsilon));
+    }
+
+
+    factor_ind_counter += 1;
+
+    if (i > 0) {
+      gtsam::Key last_pose_key = gtsam::Symbol('x', i-1);
+      gtsam::Key last_vel_key = gtsam::Symbol('v', i-1);
+
+      // interpolated cost factor
+      if (setting_.obs_check_inter > 0) {
+
+        if(i < num_sdfs_){
+          for (size_t j = 1; j <= setting_.obs_check_inter; j++) {
+            const double tau = inter_dt * static_cast<double>(j);
+            gp_obs_fact_indices_in_timestep.push_back(factor_ind_counter);
+            graph_.add(OBS_FACTOR_GP(last_pose_key, last_vel_key, pose_key, vel_key, arm, *(composite_sdf_handlers_[i]),
+                setting_.cost_sigma, setting_.epsilon, setting_.Qc_model, delta_t, tau));
+            factor_ind_counter += 1;
+          }
+        }
+        else{
+          for (size_t j = 1; j <= setting_.obs_check_inter; j++) {
+            const double tau = inter_dt * static_cast<double>(j);
+            gp_obs_fact_indices_in_timestep.push_back(factor_ind_counter);
+            graph_.add(OBS_FACTOR_GP(last_pose_key, last_vel_key, pose_key, vel_key, arm, *(composite_sdf_handlers_[0]),
+                setting_.cost_sigma, setting_.epsilon, setting_.Qc_model, delta_t, tau));
+            factor_ind_counter += 1;
+          }
+        }
+      }
+
+      // GP factor
+      gp_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(GP(last_pose_key, last_vel_key, pose_key, vel_key, delta_t, setting_.Qc_model));
+      factor_ind_counter += 1;
+    }
+
+    // fact_indices_[i]  = std::tuple< std::vector<size_t>, std::vector<size_t> >{obs_fact_indices_in_timestep , gp_obs_fact_indices_in_timestep};
+    factor_index_dict_["prior"][i] = prior_fact_indices_in_timestep;
+    factor_index_dict_["obstacle"][i] = obs_fact_indices_in_timestep;
+    factor_index_dict_["gp_obstacle"][i] = gp_obs_fact_indices_in_timestep;
+    factor_index_dict_["pos"][i] = pos_fact_indices_in_timestep;
+    factor_index_dict_["vel"][i] = vel_fact_indices_in_timestep;
+    factor_index_dict_["gp"][i] = gp_fact_indices_in_timestep;
+  
+  }
+
+  // std::cout << "Graph constructed successfully" << std::endl;
+
+}
+
+
+template <typename SDFPACKAGEPTR>
+gtsam::Values sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::optimize(const gtsam::Values& init_values){
 
   gtsam::Values res  = gpmp2::optimize(graph_, init_values, setting_);
 
@@ -1329,7 +1602,8 @@ gtsam::Values sdf_mp_integration::PlanningServer::optimize(const gtsam::Values& 
   return res;
 };
 
-gtsam::Values sdf_mp_integration::PlanningServer::optimize(const gtsam::Values& init_values, double& final_err, int& iters, bool iter_no_increase){
+template <typename SDFPACKAGEPTR>
+gtsam::Values sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::optimize(const gtsam::Values& init_values, double& final_err, int& iters, bool iter_no_increase){
 
   using namespace std;
   using namespace gtsam;
@@ -1447,7 +1721,8 @@ gtsam::Values sdf_mp_integration::PlanningServer::optimize(const gtsam::Values& 
 
 };
 
-gtsam::Values sdf_mp_integration::PlanningServer::manualOptimize(const gtsam::Values& init_values, bool iter_no_increase){
+template <typename SDFPACKAGEPTR>
+gtsam::Values sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::manualOptimize(const gtsam::Values& init_values, bool iter_no_increase){
 
   using namespace std;
   using namespace gtsam;
@@ -1553,3 +1828,7 @@ gtsam::Values sdf_mp_integration::PlanningServer::manualOptimize(const gtsam::Va
   }
 
 };
+
+
+template class sdf_mp_integration::PlanningServer<gpu_voxels_ros::GPUVoxelsHSRServer*>;
+template class sdf_mp_integration::PlanningServer<gpu_voxels_ros::LiveCompositeSDF*>;

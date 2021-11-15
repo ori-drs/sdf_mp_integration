@@ -12,6 +12,7 @@ nav_msgs
 tf
 tmc_omni_path_follower
 message_generation # For message generation
+finean_msgs
 )
 
 # find_package(catkin COMPONENTS voxblox voxblox_ros voxblox_msgs voxblox_rviz_plugin REQUIRED)
@@ -165,6 +166,42 @@ ${OMPL_LIBRARIES}
 # ${PROJECT_NAME}_lib
 )
 
+add_executable(composite_planning_server_node test_scripts/composite_planning_server_node.cpp 
+src/SDFHandler.cpp
+src/PlanningServer.cpp
+src/GraphMaintainer.cpp
+src/SetHSRConf.cpp
+src/GenerateArm.cpp
+src/ResultsRecorder.cpp
+src/HeadController.cpp
+src/utils/timing.cpp
+src/utils/traj_utils.cpp
+src/utils/Visualiser.cpp
+)
+
+target_link_libraries(composite_planning_server_node 
+${catkin_LIBRARIES} 
+${roscpp_LIBRARIES} 
+# ${fiesta_LIBRARIES}
+${PCL_LIBRARIES}
+${OpenCV_LIBS}
+gpmp2
+gtsam
+# ${voxblox_ros_LIBRARIES}
+
+${Boost_SYSTEM_LIBRARY}
+${icl_core_LIBRARIES}
+${gpu_voxels_LIBRARIES}
+${CUDA_LIBRARIES}
+${orocos_kdl_LIBRARIES}
+${rospy_LIBRARIES}
+${gpu_voxels_ros_LIBRARIES}
+${dgpmp2_LIBRARIES}
+${OMPL_LIBRARIES}
+
+# ${PROJECT_NAME}_lib
+)
+
 add_executable(test_pose2vector test_scripts/test_pose2vector.cpp 
 )
 target_link_libraries(test_pose2vector 
@@ -195,6 +232,7 @@ catkin_install_python(PROGRAMS  scripts/plotting_node.py
                                 scripts/hsr_python_controller.py
                                 scripts/moving_obstacle_node.py
                                 scripts/nbv_moving_obstacle_node.py
+                                scripts/person_moving_obstacle_node.py
                       DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 # Install directory

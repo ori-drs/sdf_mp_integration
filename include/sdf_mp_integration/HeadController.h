@@ -9,6 +9,7 @@
 #define SDF_MP_INTEGRATION_HEADCONTROLLER_H
 
 #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
+#include <gpu_voxels_ros/live_composite_sdf.h>
 #include <gtsam/nonlinear/Values.h>
 #include <sdf_mp_integration/HeadDirection.h>
 
@@ -21,10 +22,11 @@
 
 namespace sdf_mp_integration {
 
+  template <typename SDFPACKAGEPTR>
   class HeadController {
 
     private:
-        gpu_voxels_ros::GPUVoxelsHSRServer* gpu_voxels_ptr_;
+        SDFPACKAGEPTR gpu_voxels_ptr_;
         float delta_t_;
         actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> head_traj_ac_ ;
         ros::NodeHandle node_;
@@ -44,7 +46,7 @@ namespace sdf_mp_integration {
         //  constructor
         HeadController() : head_traj_ac_("/hsrb/head_trajectory_controller/follow_joint_trajectory", true) {}      
         
-        HeadController(ros::NodeHandle node, gpu_voxels_ros::GPUVoxelsHSRServer* gpu_voxels_ptr, float delta_t, int head_behaviour) : 
+        HeadController(ros::NodeHandle node, SDFPACKAGEPTR gpu_voxels_ptr, float delta_t, int head_behaviour) : 
                     gpu_voxels_ptr_(gpu_voxels_ptr), head_traj_ac_("/hsrb/head_trajectory_controller/follow_joint_trajectory", true), node_(node) , delta_t_(delta_t) , head_behaviour_(head_behaviour)
         {
                         gaze_pub_ = node_.advertise<sdf_mp_integration::HeadDirection>("hsr_gaze_update", 1);

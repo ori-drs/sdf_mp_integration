@@ -16,6 +16,7 @@
 #include <tf/transform_broadcaster.h>
 
 
+// #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
 #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
 #include <sdf_mp_integration/SetHSRConf.h>
 #include <sdf_mp_integration/GenerateArm.h>
@@ -77,6 +78,7 @@
 
 namespace sdf_mp_integration {
 
+template <typename SDFPACKAGEPTR>
 class PlanningServer{
 
     private:
@@ -96,9 +98,15 @@ class PlanningServer{
 
       ResultsRecorder results_recorder_;
       HSRVisualiser dh_vis_;
-      sdf_mp_integration::HeadController* head_controller_;
+      sdf_mp_integration::HeadController<SDFPACKAGEPTR>* head_controller_;
 
-      GPUVoxelsPtr gpu_voxels_ptr_ = NULL; 
+      // GPUVoxelsPtr gpu_voxels_ptr_ = NULL; 
+      // LiveCompositeSDFPtr gpu_voxels_live_composite_sdf_ptr_ = NULL;
+
+      SDFPACKAGEPTR gpu_voxels_ptr_ = NULL; 
+
+      std::vector<sdf_mp_integration::SDFHandler<LiveCompositeSDFPtr>*> composite_sdf_handlers_;
+      size_t num_sdfs_;
 
       int arm_dof_ = 5;
 
@@ -174,8 +182,10 @@ class PlanningServer{
 
       ~PlanningServer() {}
 
+      void initGPUVoxels();
 
       gtsam::Values getInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose);
+      gtsam::Values getRandomBaseInitTrajectory(const gpmp2::Pose2Vector &start_pose, const gpmp2::Pose2Vector &end_pose, const double max_variance);
       void reinitTrajectoryRemainder(gtsam::Values &traj_before, const size_t current_ind);
       void reinitTrajectory(gtsam::Values &traj);
 
@@ -238,11 +248,18 @@ class PlanningServer{
       // void feedbackCb(const tmc_omni_path_follower::PathFollowerFeedbackConstPtr& feedback);
 
       bool collisionCheck(const gtsam::Values &traj);
+      
       template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
                 class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
       void constructGraph(const ROBOT& arm,
                                     const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
                                     const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel);
+
+      // template <class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
+      //     class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
+      // void constructIndexedGraph(const ROBOT& arm,
+      //                     const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
+      //                     const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel);
 
 
       void printCosts(const gtsam::Values& traj);

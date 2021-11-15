@@ -43,3 +43,17 @@ double sdf_mp_integration::SDFHandler<GPUVoxelsPtr>::getSignedDistance(const gts
   // return sdf_package_ptr_->GetDistanceAndGradient(point, g);
   return sdf_package_ptr_->GetTrilinearDistanceAndGradient(point, g);
 };
+
+template <>
+double sdf_mp_integration::SDFHandler<LiveCompositeSDFPtr>::getSignedDistance(const gtsam::Point3& point) const {
+  // std::cout << "Distance: " << sdf_package_ptr_->GetDistance(point) << std::endl;
+  // return sdf_package_ptr_->GetDistance(point);
+  return sdf_package_ptr_->GetTrilinearDistanceIndexed(point, t_index_);
+};
+
+template <>
+double sdf_mp_integration::SDFHandler<LiveCompositeSDFPtr>::getSignedDistance(const gtsam::Point3& point, gtsam::Vector3& g) const {
+  // std::cout << "Distance: " << sdf_package_ptr_->GetDistance(point) << std::endl;
+  // return sdf_package_ptr_->GetDistanceAndGradient(point, g);
+  return sdf_package_ptr_->GetTrilinearDistanceAndGradientIndexed(point, g, t_index_);
+};

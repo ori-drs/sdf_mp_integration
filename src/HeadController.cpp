@@ -8,8 +8,8 @@ float constrainAngle(float x){
     return x - M_PI;
 }
 
-
-void sdf_mp_integration::HeadController::GetNextCameraPosition(const gtsam::Values& plan, float head_state[2], const double delta_t, const size_t num_keys, const size_t current_ind){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::HeadController<SDFPACKAGEPTR>::GetNextCameraPosition(const gtsam::Values& plan, float head_state[2], const double delta_t, const size_t num_keys, const size_t current_ind){
   
   switch (head_behaviour_)
   {
@@ -31,8 +31,8 @@ void sdf_mp_integration::HeadController::GetNextCameraPosition(const gtsam::Valu
 
 };
 
-
-void sdf_mp_integration::HeadController::GetNBV(const gtsam::Values& plan, float head_state[2], const double delta_t, const size_t num_keys, const size_t current_ind){
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::HeadController<SDFPACKAGEPTR>::GetNBV(const gtsam::Values& plan, float head_state[2], const double delta_t, const size_t num_keys, const size_t current_ind){
 //   std::cout << "sdf_mp_integration::HeadController::Getting the GetNBV. Ind:" << current_ind << "   num_keys:" << num_keys << std::endl;
 
   if(current_ind>=num_keys){
@@ -73,7 +73,8 @@ void sdf_mp_integration::HeadController::GetNBV(const gtsam::Values& plan, float
 
 };
 
-void sdf_mp_integration::HeadController::executeHeadTrajectory(const float head_pan_joint, const float head_tilt_joint, const size_t delay_inds) {
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::HeadController<SDFPACKAGEPTR>::executeHeadTrajectory(const float head_pan_joint, const float head_tilt_joint, const size_t delay_inds) {
     control_msgs::FollowJointTrajectoryGoal trajectory_goal;
     trajectory_goal.trajectory.header.stamp = ros::Time::now();
     trajectory_goal.trajectory.joint_names.push_back("head_pan_joint");      
@@ -91,7 +92,8 @@ void sdf_mp_integration::HeadController::executeHeadTrajectory(const float head_
 
 };
 
-void sdf_mp_integration::HeadController::look(const float x, const float y, const float z, const std::string frame) const{
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::HeadController<SDFPACKAGEPTR>::look(const float x, const float y, const float z, const std::string frame) const{
 
     // Look ahead
     sdf_mp_integration::HeadDirection gaze_msg;
@@ -103,7 +105,8 @@ void sdf_mp_integration::HeadController::look(const float x, const float y, cons
 
 }
 
-void sdf_mp_integration::HeadController::look(const gtsam::Values& traj, const size_t current_ind,  const size_t num_keys, const double t_look_ahead, const std::string frame) const{
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::HeadController<SDFPACKAGEPTR>::look(const gtsam::Values& traj, const size_t current_ind,  const size_t num_keys, const double t_look_ahead, const std::string frame) const{
     
     size_t ind = std::min(  current_ind + ceil(t_look_ahead/delta_t_), (double) num_keys - 1);
     gpmp2::Pose2Vector pose = traj.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', ind));
@@ -111,7 +114,8 @@ void sdf_mp_integration::HeadController::look(const gtsam::Values& traj, const s
     look(pose.pose().x(), pose.pose().y(), 0, frame);
 }
 
-void sdf_mp_integration::HeadController::pan() {
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::HeadController<SDFPACKAGEPTR>::pan() {
     
     if(pan_increasing_){
         float theta = constrainAngle(current_theta_ + delta_t_ * angular_v_);
@@ -137,6 +141,10 @@ void sdf_mp_integration::HeadController::pan() {
     this->executeHeadTrajectory(current_theta_, tilt_, 1);
 }
 
-void sdf_mp_integration::HeadController::lookForwards() {
+template <typename SDFPACKAGEPTR>
+void sdf_mp_integration::HeadController<SDFPACKAGEPTR>::lookForwards() {
     this->executeHeadTrajectory(0, 0, 1);
 }
+
+template class sdf_mp_integration::HeadController<gpu_voxels_ros::GPUVoxelsHSRServer*>;
+template class sdf_mp_integration::HeadController<gpu_voxels_ros::LiveCompositeSDF*>;
