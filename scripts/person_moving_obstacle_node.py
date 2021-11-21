@@ -45,27 +45,27 @@ class DynamicObstacleManager:
 
     def move_to_init(self, exp_id):
         trajectories = self.exps[exp_id]
-        self.environment_manager.move_object('person', trajectories[0][0, :], [  0, 0, 0.7071068, 0.7071068 ])
+        self.environment_manager.move_object('person', trajectories[0][0, :], [  0, 0, -0.7071068, 0.7071068 ])
         if(len(trajectories) == 2):
             self.environment_manager.move_object('person2', trajectories[1][0, :], self.ori)
         if(len(trajectories) == 3):
-                self.environment_manager.move_object('person3', trajectories[2][0, :], [  0, 0, 0.7071068, 0.7071068 ])
+                self.environment_manager.move_object('person3', trajectories[2][0, :], [  0, 0, -0.7071068, 0.7071068 ])
                 
     def execute_trajectories(self, trajectories):
         num_traj_points = trajectories[0].shape[0]
         for i in range(num_traj_points):
-            self.environment_manager.move_object('person', trajectories[0][i, :], [  0, 0, 0.7071068, 0.7071068 ])
+            self.environment_manager.move_object('person', trajectories[0][i, :], [  0, 0, -0.7071068, 0.7071068 ])
             if(len(trajectories) == 2):
                 self.environment_manager.move_object('person2', trajectories[1][i, :], self.ori)
             if(len(trajectories) == 3):
-                self.environment_manager.move_object('person', trajectories[2][i, :], [ 0, 0, 0.7071068, 0.7071068 ])
+                self.environment_manager.move_object('person', trajectories[2][i, :], [ 0, 0, -0.7071068, 0.7071068 ])
             self.rate.sleep()
 
     def execute_trajectory_id(self, exp_id):
         self.execute_trajectories(self.exps[exp_id])
         
     def callback(self, msg):    
-        rospy.loginfo("Dynamic obstaccle command received")
+        rospy.loginfo("Dynamic obstacle command received")
         # pick and place params
         self.move_to_init(msg.data)
         rospy.sleep(0.2)
@@ -78,19 +78,17 @@ class DynamicObstacleManager:
 if __name__ == '__main__':
     rospy.init_node('person_moving_obstacle_node', anonymous=True)
 
-    ind_waypoints_dict = {0: [np.array([ [100, 20.0, 0.0, 0.0], 
-                                    [100, 20.0, 0.0, 1.0]], dtype=float), 
-                            np.array([ [100, 21.0, 0.0, 0.0],
-                                    [100, 21.0, 0.0, 1.0]], dtype=float),
-                            np.array([ [100, 22.0, 0.0, 0.0],
-                                    [100, 22.0, 0.0, 1.0]], dtype=float)],
+    ind_waypoints_dict = {0:  [np.array([[2.0, 1.0, 0.0, 0.0], 
+                                        [-3.0, 1.0, 0.0, 17.0]], dtype=float)], # Straight at robot
 
                         1: [np.array([[-1.0, -1.0, 0.0, 0.0], 
-                                        [3.0, -1.0, 0.0, 30.0]], dtype=float)], # This is the original dynamic experiment
+                                        [3.0, -1.0, 0.0, 40.0]], dtype=float)], # This is the original dynamic experiment
                         
-                        2: [np.array([[-1.0, -1.0, 0.0, 0.0], 
-                                        [0.0, -1.0, 0.0, 15.0], 
-                                        [3.0, 2.0, 0.0, 55.0]], dtype=float)],                    
+                        2: [np.array([[2.0, 1.0, 0.0, 0.0], 
+                                        [1.0, 1.0, 0.0, 3.4], 
+                                        [0.0, 0.0, 0.0, 6.8],
+                                        [-1.0, 1.0, 0.0, 10.2],
+                                        [-3.0, 1.0, 0.0, 17.0]], dtype=float)], # Straight at robot                  
                         }
 
 

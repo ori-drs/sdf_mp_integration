@@ -26,8 +26,8 @@
   <node pkg="nodelet" type="nodelet" name="mark_nodelet_manager" args="manager" />
 
   <node pkg="nodelet" type="nodelet" name="nodelet1" args="load depth_image_proc/point_cloud_xyz mark_nodelet_manager">
-    <remap from="camera_info" to="/centermask2_depth_ros/camera_info"/>
-    <remap from="image_rect" to="/centermask2_depth_ros/static_depth_image"/>
+    <remap from="camera_info" to="/hsrb/head_rgbd_sensor/depth_registered/camera_info"/>
+    <remap from="image_rect" to="/hsrb/head_rgbd_sensor/depth_registered/image_rect_raw"/>
     <remap from="points" to="/local_points"/>
     <param name="queue_size" value="40"/>
   </node>
