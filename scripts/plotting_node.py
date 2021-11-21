@@ -28,8 +28,7 @@ class listener():
         self.msg = None
         self.delta_t = None
         self.actual_base_sub = None
-        # self.goal_sub = rospy.Subscriber("move_base_simple/goal", PoseStamped, self.goalCallback)
-        self.goal_sub = rospy.Subscriber("/hsrb/omni_base_controller/follow_joint_trajectory/goal", FollowJointTrajectoryActionGoal, self.goalCallback)
+        # self.goal_sub = rospy.Subscriber("/hsrb/omni_base_controller/follow_joint_trajectory/goal", FollowJointTrajectoryActionGoal, self.goalCallback)
         
         
         self.base_time_buffer = []
@@ -75,26 +74,26 @@ class listener():
         ax.plot(time, y, 'b--', label='desired y')
         ax.plot(time, theta, 'g--', label='desired yaw')
         
-        # Plot the actual
-        num_points = len(self.base_time_buffer)
-        x = np.zeros(num_points)
-        y = np.zeros(num_points)
-        theta = np.zeros(num_points)
-        time = np.zeros(num_points)
-        for i in range(num_points):
-            x[i] = self.base_x_buffer[i]
-            y[i] = self.base_y_buffer[i]
-            theta[i] = self.base_t_buffer[i]/(2 * 3.141)
-            # theta[i] = (self.base_t_buffer[i] + 3.141)/(2 * 3.141)
-            time[i] = self.base_time_buffer[i].to_sec()
+        # # Plot the actual
+        # num_points = len(self.base_time_buffer)
+        # x = np.zeros(num_points)
+        # y = np.zeros(num_points)
+        # theta = np.zeros(num_points)
+        # time = np.zeros(num_points)
+        # for i in range(num_points):
+        #     x[i] = self.base_x_buffer[i]
+        #     y[i] = self.base_y_buffer[i]
+        #     theta[i] = self.base_t_buffer[i]/(2 * 3.141)
+        #     # theta[i] = (self.base_t_buffer[i] + 3.141)/(2 * 3.141)
+        #     time[i] = self.base_time_buffer[i].to_sec()
         
 
-        # ax.plot(time - self.msg.header.stamp.to_sec(),(x-min(x))/(max(x)-min(x)), 'r', label='actual x')
-        # ax.plot(time - self.msg.header.stamp.to_sec(),(y-min(y))/(max(y)-min(y)), 'b', label='actual y')            
-        ax.plot(time - self.msg.header.stamp.to_sec(), x, 'r', label='actual x')
-        ax.plot(time - self.msg.header.stamp.to_sec(), y, 'b', label='actual y')
+        # # ax.plot(time - self.msg.header.stamp.to_sec(),(x-min(x))/(max(x)-min(x)), 'r', label='actual x')
+        # # ax.plot(time - self.msg.header.stamp.to_sec(),(y-min(y))/(max(y)-min(y)), 'b', label='actual y')            
+        # ax.plot(time - self.msg.header.stamp.to_sec(), x, 'r', label='actual x')
+        # ax.plot(time - self.msg.header.stamp.to_sec(), y, 'b', label='actual y')
+        # # ax.plot(time - self.msg.header.stamp.to_sec(), theta, 'g', label='actual yaw')
         # ax.plot(time - self.msg.header.stamp.to_sec(), theta, 'g', label='actual yaw')
-        ax.plot(time - self.msg.header.stamp.to_sec(), theta, 'g', label='actual yaw')
 
 
         # Finish up the graph
@@ -210,7 +209,9 @@ class listener():
 
     def callback(self, msg):
         self.msg = msg
-
+        self.delta_t = 0.5
+        self.plotPositions()
+        self.plotVelocities()
 
 if __name__ == '__main__':
     listener = listener()

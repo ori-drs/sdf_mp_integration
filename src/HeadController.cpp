@@ -24,6 +24,9 @@ void sdf_mp_integration::HeadController<SDFPACKAGEPTR>::GetNextCameraPosition(co
   case 3:
       GetNBV(plan, head_state, delta_t, num_keys, current_ind);
       return;  
+  case 4: // 
+      look(plan, current_ind, num_keys, 2.0, "odom");
+      return;
   default:
       std::cout << "PLEASE ENTER A VALID HEAD BEHAVIOUR" << std::endl;
       return;
