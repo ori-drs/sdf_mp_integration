@@ -50,6 +50,8 @@ namespace sdf_mp_integration {
                     gpu_voxels_ptr_(gpu_voxels_ptr), head_traj_ac_("/hsrb/head_trajectory_controller/follow_joint_trajectory", true), node_(node) , delta_t_(delta_t) , head_behaviour_(head_behaviour)
         {
                         gaze_pub_ = node_.advertise<sdf_mp_integration::HeadDirection>("hsr_gaze_update", 1);
+                        node_.param<int>("t_look_ahead", t_look_ahead_, 3);
+
         }      
 
         ~HeadController() {}
