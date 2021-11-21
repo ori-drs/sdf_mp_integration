@@ -82,11 +82,15 @@ namespace sdf_mp_integration {
     try {
       dist_signed = sdf_handler.getSignedDistance(point, field_gradient);
     } catch (gpmp2::SDFQueryOutOfRange&) {
-      std::cout << "[hingeLossObstacleCost] WARNING: querying signed distance out of range, assume zero obstacle cost." << std::endl;
+      // std::cout << "[hingeLossObstacleCost] WARNING: querying signed distance out of range, assume zero obstacle cost." << std::endl;
+      if (H_point) *H_point = gtsam::Matrix13::Zero();
+      return 0.0;
+    } catch (std::out_of_range&) {
+      // std::cout << "[hingeLossObstacleCost] WARNING: querying signed distance out of range, assume zero obstacle cost." << std::endl;
       if (H_point) *H_point = gtsam::Matrix13::Zero();
       return 0.0;
     }
-
+  
     if (dist_signed > eps) {
       // faraway no error
       if (H_point) *H_point = gtsam::Matrix13::Zero();
