@@ -168,7 +168,11 @@ class PlanningServer{
       size_t goal_id_ = 0;
 
       int num_stops_ = 0;
+      int num_stops_thresh_ = 2;
+      int replan_attempts_ = 0;
+      int replan_attempts_thresh_ = 3;
 
+      // int stopped_
     public:
 
       EIGEN_MAKE_ALIGNED_OPERATOR_NEW

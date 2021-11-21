@@ -166,15 +166,15 @@ gtsam::Values sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::getRandomBaseIn
         gtsam::Symbol key_pos = gtsam::Symbol('x', i);
         gtsam::Symbol key_vel = gtsam::Symbol('v', i);
         
-        double rand_x = rand() % 100 + 1 / divisor;
-        double rand_y = rand() % 100 + 1 / divisor;
+        double rand_x = (rand() % 100 + 1) / divisor;
+        double rand_y = (rand() % 100 + 1) / divisor;
 
         // initialize as straight line in conf space
         gtsam::Vector conf = start_pose.configuration() * (total_time_step_-i)/total_time_step_ + end_pose.configuration() * i/total_time_step_;
         
-        gtsam::Pose2 pose(start_pose.pose().x() * (total_time_step_-i)/total_time_step_ + end_pose.pose().x() * i/total_time_step_ + rand_x, 
-                          start_pose.pose().y() * (total_time_step_-i)/total_time_step_ + end_pose.pose().y() * i/total_time_step_ + rand_y, 
-                          start_pose.pose().theta() * (total_time_step_-i)/total_time_step_ + end_pose.pose().theta() * i/total_time_step_
+        gtsam::Pose2 pose( (start_pose.pose().x() * (total_time_step_-i)/total_time_step_ + end_pose.pose().x() * i/total_time_step_) + rand_x, 
+                           (start_pose.pose().y() * (total_time_step_-i)/total_time_step_ + end_pose.pose().y() * i/total_time_step_) + rand_y, 
+                            start_pose.pose().theta() * (total_time_step_-i)/total_time_step_ + end_pose.pose().theta() * i/total_time_step_
         );
 
         // gtsam::insertPose2VectorInValues(key_pos, gpmp2::Pose2Vector(pose, conf), init_values);
