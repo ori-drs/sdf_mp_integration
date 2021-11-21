@@ -29,15 +29,15 @@ sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::PlanningServer(ros::NodeHandl
     results_recorder_ = ResultsRecorder("/home/mark/next_best_view", "");
 
     // Subscriptions
-    base_goal_sub_ = node_.subscribe(base_goal_sub_topic_, 10, &PlanningServer::baseGoalCallback, this);
-    arm_goal_sub_ = node_.subscribe(arm_goal_sub_topic_, 10, &PlanningServer::armGoalCallback, this);
-    full_goal_sub_ = node_.subscribe(full_goal_sub_topic_, 10, &PlanningServer::fullGoalCallback, this);
+    base_goal_sub_ = node_.subscribe(base_goal_sub_topic_, 1, &PlanningServer::baseGoalCallback, this);
+    arm_goal_sub_ = node_.subscribe(arm_goal_sub_topic_, 1, &PlanningServer::armGoalCallback, this);
+    full_goal_sub_ = node_.subscribe(full_goal_sub_topic_, 1, &PlanningServer::fullGoalCallback, this);
 
     joint_sub_ = node_.subscribe("/hsrb/joint_states", 1, &PlanningServer::jointStateCallback, this);
     odom_sub_ = node_.subscribe("/hsrb/omni_base_controller/state", 1, &PlanningServer::odomStateCallback, this);
 
-    path_pub_ = node_.advertise<nav_msgs::Path>("gpmp2_plan", 1000);
-    init_path_pub_ = node_.advertise<nav_msgs::Path>("gpmp2_init_plan", 1000);
+    path_pub_ = node_.advertise<nav_msgs::Path>("gpmp2_plan", 1);
+    init_path_pub_ = node_.advertise<nav_msgs::Path>("gpmp2_init_plan", 1);
     plan_msg_pub_ = node_.advertise<sdf_mp_integration::GtsamValues>("gpmp2_results", 1);
     hsr_python_move_pub_ = node_.advertise<std_msgs::String>("hsr_move_to_go", 1);
 
