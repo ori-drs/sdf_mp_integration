@@ -429,8 +429,9 @@ bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::isTaskComplete(){
 
 };
 
-template <typename SDFPACKAGEPTR>
-bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::collisionCheck(const gtsam::Values &traj){
+// template <typename SDFPACKAGEPTR>
+template <>
+bool sdf_mp_integration::PlanningServer<GPUVoxelsPtr>::collisionCheck(const gtsam::Values &traj){
 
   bool isCollide = false;
   size_t interp_steps = 4;
@@ -441,8 +442,8 @@ bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::collisionCheck(const gts
   // Get a single obstacle factor from the graph to carry out the evaluation  
   // gtsam::FactorGraph<sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>>::sharedFactor fact_ptr = graph_.at(factor_index_dict_["obstacle"][0][0]);
   gtsam::NonlinearFactor::shared_ptr fact_ptr = graph_.at(factor_index_dict_["obstacle"][0][0]);
-  typename sdf_mp_integration::ObstacleFactor<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel>::shared_ptr conv_fact_ptr = 
-                                                  boost::static_pointer_cast<sdf_mp_integration::ObstacleFactor<SDFPACKAGEPTR, gpmp2::Pose2MobileVetLinArmModel>>(fact_ptr);
+  typename sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>::shared_ptr conv_fact_ptr = 
+                                                  boost::static_pointer_cast<sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>>(fact_ptr);
 
   // Loop through each time-step in the trajectory to check for a collision
   // std::cout << "Collisions at steps:" << std::endl;
@@ -451,6 +452,53 @@ bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::collisionCheck(const gts
     isCollide = isCollide || conv_fact_ptr->isInCollision(pose);
     // std::cout << conv_fact_ptr->isInCollision(pose) << ", ";
   }
+  // std::cout << std::endl;
+
+  return isCollide;
+
+}
+
+// template <typename SDFPACKAGEPTR>
+template <>
+bool sdf_mp_integration::PlanningServer<LiveCompositeSDFPtr>::collisionCheck(const gtsam::Values &traj){
+
+  bool isCollide = false;
+  // size_t interp_steps = 4;
+  size_t interp_steps = 0;
+
+  gtsam::Values interp_traj = gpmp2::interpolatePose2MobileArmTraj(traj, setting_.Qc_model, delta_t_, interp_steps, 0, total_time_step_-1);
+
+  // TODO - Sort this horrible conversion out
+  // Get a single obstacle factor from the graph to carry out the evaluation  
+  // gtsam::FactorGraph<sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>>::sharedFactor fact_ptr = graph_.at(factor_index_dict_["obstacle"][0][0]);
+
+  // Loop through each time-step in the trajectory to check for a collision
+  // std::cout << "Collisions at steps:" << std::endl;
+  gtsam::NonlinearFactor::shared_ptr fact_ptr;
+  typename sdf_mp_integration::ObstacleFactor<LiveCompositeSDFPtr, gpmp2::Pose2MobileVetLinArmModel>::shared_ptr conv_fact_ptr;
+  // for (size_t i = 0; i < (total_time_step_-1)*(interp_steps+1) + 1; i++){   
+  
+  // std::cout << << std::endl;
+
+  for (size_t i = 0; i < total_time_step_-1; i++){   
+    fact_ptr = graph_.at(factor_index_dict_["obstacle"][i][0]);
+    conv_fact_ptr = boost::static_pointer_cast<sdf_mp_integration::ObstacleFactor<LiveCompositeSDFPtr, gpmp2::Pose2MobileVetLinArmModel>>(fact_ptr);
+    for (size_t j = 0; j < interp_steps+1; j++){   
+      size_t ind = (i * (interp_steps+1)) + j;
+      // std::cout << "i: " << i << "\t j: " << j << "\t ind: " << ind << std::endl;
+      gpmp2::Pose2Vector pose = interp_traj.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', ind));
+      isCollide = isCollide || conv_fact_ptr->isInCollision(pose);
+      // std::cout << conv_fact_ptr->isInCollision(pose) << ", ";
+    }
+  }
+
+  fact_ptr = graph_.at(factor_index_dict_["obstacle"][total_time_step_-1][0]);
+  conv_fact_ptr = boost::static_pointer_cast<sdf_mp_integration::ObstacleFactor<LiveCompositeSDFPtr, gpmp2::Pose2MobileVetLinArmModel>>(fact_ptr);
+  size_t ind = (total_time_step_-2) * (interp_steps+1) + 1;
+  // std::cout << "ind: " << ind << std::endl;
+  gpmp2::Pose2Vector pose = interp_traj.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', ind));
+  isCollide = isCollide || conv_fact_ptr->isInCollision(pose);
+
   // std::cout << std::endl;
 
   return isCollide;
