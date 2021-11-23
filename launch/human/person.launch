@@ -29,7 +29,7 @@
     <remap from="camera_info" to="/centermask2_depth_ros/camera_info"/>
     <remap from="image_rect" to="/centermask2_depth_ros/static_depth_image"/>
     <remap from="points" to="/local_points"/>
-    <param name="queue_size" value="40"/>
+    <param name="queue_size" value="1"/>
   </node>
 
   <include file="$(find hsrb_gazebo_launch)/launch/include/hsrb_gazebo_common.xml">
@@ -55,6 +55,10 @@
     <arg name="paused" value="false" />
     <arg name="robot_name" value="$(optenv ROBOT_NAME hsrb)" />
   </include>
+
+  <param name="sensor_frame" type="string" value="head_rgbd_sensor_rgb_frame"/>
+  <param name="use_rgb" type="bool" value="0" />
+  <param name="max_queue_size" type="int" value="1"/>
 
   <include file="$(find robot_self_filter)/launch/filter.launch">
     <arg name="cloud_in" value="/local_points"/>
