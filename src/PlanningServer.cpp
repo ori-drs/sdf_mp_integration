@@ -293,7 +293,7 @@ void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::createSettings(float tot
     // node_.param<float>("cost_sigma", cost_sigma_, 0.2);
     // node_.param<float>("epsilon", epsilon_, 0.2);
     node_.param<float>("cost_sigma", cost_sigma_, 0.05);
-    node_.param<int>("obs_check_inter", obs_check_inter_, 4);
+    node_.param<int>("obs_check_inter", obs_check_inter_, 0);
     node_.param<bool>("flag_pos_limit", flag_pos_limit_, false);
     node_.param<bool>("flag_vel_limit", flag_vel_limit_, true);
 
@@ -434,7 +434,8 @@ template <>
 bool sdf_mp_integration::PlanningServer<GPUVoxelsPtr>::collisionCheck(const gtsam::Values &traj){
 
   bool isCollide = false;
-  size_t interp_steps = 4;
+  // size_t interp_steps = 4;
+  size_t interp_steps = 0;
 
   gtsam::Values interp_traj = gpmp2::interpolatePose2MobileArmTraj(traj, setting_.Qc_model, delta_t_, interp_steps, 0, total_time_step_-1);
 
