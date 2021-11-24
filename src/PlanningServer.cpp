@@ -730,7 +730,7 @@ void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::estimateAndCreateSetting
 
   if(base_task_){
     est_traj_dist = sqrt(std::pow( goal_pose.pose().x() - start_pose.pose().x(), 2) + std::pow(goal_pose.pose().y() - start_pose.pose().y(), 2));
-    est_traj_time = est_traj_dist / 0.12;
+    est_traj_time = est_traj_dist / 0.15;
     est_steps = round(est_traj_time/delta_t_) + 1;  
     est_traj_time = est_steps * delta_t_;
   }
