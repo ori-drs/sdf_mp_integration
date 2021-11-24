@@ -551,7 +551,8 @@ bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::isTrajectoryOnTime(){
 template <typename SDFPACKAGEPTR>
 bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::isPathStillGood(){
     double traj_error = graph_.error(traj_res_);    
-    bool path_bool = last_traj_error_ < 1.5 * traj_error && last_traj_error_ >= traj_error;
+    // bool path_bool = last_traj_error_ < 2.0 * traj_error && last_traj_error_ >= traj_error;
+    bool path_bool = last_traj_error_ < 2.0 * traj_error && last_traj_error_ >= traj_error;
 
     return path_bool;
 }
