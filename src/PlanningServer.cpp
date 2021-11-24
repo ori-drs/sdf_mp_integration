@@ -315,7 +315,7 @@ void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::createSettings(float tot
     gtsam::Vector joint_vel_limit_thresh_(arm_dof_+3);
 
     // joint velocity limit param
-    joint_vel_limit_vec_ << 0.15, 0.15, 0.5, 0.1, 0.3, 1.0, 1.0, 1.0;
+    joint_vel_limit_vec_ << 0.17, 0.17, 0.5, 0.1, 0.3, 1.0, 1.0, 1.0;
     joint_vel_limit_thresh_ = 0.001 * gtsam::Vector::Ones(arm_dof_+3);
     
 
