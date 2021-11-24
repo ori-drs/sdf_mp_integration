@@ -664,8 +664,9 @@ void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::replan(){
 
     // Check whether we're still on track with a new estimated time
     // if( onTime && isPathGood && !inCollision && !stopped_bool ){
-    if( onTime && isPathGood && !inCollision && num_stops_ < num_stops_thresh_ ){
-        // std::cout << "Using same trajectory."<< std::endl;
+    // if( onTime && isPathGood && !inCollision && num_stops_ < num_stops_thresh_ ){
+    if(isPathGood && !inCollision && num_stops_ < num_stops_thresh_ ){
+        std::cout << "Using same trajectory since it's still good!"<< std::endl;
         if(idx > total_time_step_){
           std::cout << "Index is greater that the total time steps!!" << std::endl;
         }
