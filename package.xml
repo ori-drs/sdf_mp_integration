@@ -6,7 +6,7 @@
 
   <maintainer email="mark.finean@stx.ox.ac.uk">Mark Finean</maintainer>
 
-  <license>TODO</license>
+  <license>BSD-3_Clause</license>
 
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>

@@ -1,50 +1,35 @@
-# sdf_mp_integration
+sdf_mp_integration
+===================================================
 
-## To do
+This package performs integrates fast distance field computations (gpu_voxels_ros) with whole-body motion planning using a trajectory optimisation approach. 
+This package inlcudes an implementation of the Receding Horizon and Predictive Gaussian Process Motion Planner 2 (RHAP-GPMP2), as presented in Finean2022 listed below.
+## Citing
+-----
 
-- [ ] Document the benchmarking results and commmands
-## Benchmarking commands
+If you use this work, please cite following publications:
 
-To play the cow and lady dataset:
-rosbag play /home/mark/code/sdf_package_testing/src/data.bag
+```
+@INPROCEEDINGS{Finean2022,
+  author={Finean, Mark Nicholas and Petrović, Luka and Merkt, Wolfgang and Marković, Ivan and Havoutis, Ioannis},
+  title={Motion Planning in Dynamic Environments Using Human Trajectory Prediction}, 
+  year={2022},
+  }
 
-Voxblox:
-roslaunch voxblox_ros cow_and_lady_dataset_esdf.launch
+@inproceedings{Finean2021,
+author = {Finean, Mark Nicholas and Merkt, Wolfgang and Havoutis, Ioannis},
+booktitle = {2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+doi = {10.1109/IROS51168.2021.9636860},
+eprint = {2103.03958},
+isbn = {978-1-6654-1714-3},
+month = {sep},
+pages = {3710--3717},
+publisher = {IEEE},
+title = {{Simultaneous Scene Reconstruction and Whole-Body Motion Planning for Safe Operation in Dynamic Environments}},
+year = {2021}
+}
 
-FIESTA
+```
 
-GPU-Voxels
-
-
-
-## Benchmarking commands
-
-
-
-## Example planning goals
-rostopic pub -1 /full_goal sdf_mp_integration/WholeBodyPose '{arm: [0.2, -1, -1, -1.57, -1], base:{header:{stamp: now, frame_id: odom}, pose:{position:{x: 0, y: 0, z: 0}, orientation: {x: 0, y: 0, z: 0, w: 1}}}}'
-
-rostopic pub -1 /full_goal sdf_mp_integration/WholeBodyPose '{arm: [0, 0, 0, -1.57, 0], base:{header:{stamp: now, frame_id: odom}, pose:{position:{x: 0, y: 0, z: 0}, orientation: {x: 0, y: 0, z: 0, w: 1}}}}'
-
-rostopic pub -1 /start_moving_obstacle 0.5
-
-
-
-
-Good grasping pose: whole_body.move_to_joint_positions({"arm_lift_joint": 0.0, "arm_flex_joint": -0.9, "arm_roll_joint": 0, "wrist_flex_joint": -0.7, "wrist_roll_joint": 0.0})
-[0.0, 0.9, 0.0, 0.7, 0.0]
-
-rostopic pub -1 /full_goal sdf_mp_integration/WholeBodyPose '{arm: [0.0, -0.9, 0.0, -0.7, 0.0], base:{header:{stamp: now, frame_id: odom}, pose:{position:{x: 1.84, y: -0.65, z: 0}, orientation: {x: 0, y: 0, z: -0.062, w: 0.998}}}}'
-
-rostopic pub -1 /full_goal sdf_mp_integration/WholeBodyPose '{arm: [0.12, -1.31, -0.81, -0.74, -0.37], base:{header:{stamp: now, frame_id: odom}, pose:{position:{x: 1.84, y: -0.65, z: 0}, orientation: {x: 0, y: 0, z: -0.062, w: 0.998}}}}'
-
-
-<!-- Nice for the ori settings -->
-rostopic pub -1 /full_goal sdf_mp_integration/WholeBodyPose '{arm: [0.0, -1.1, 0.0, -0.7, 0.0], base:{header:{stamp: now, frame_id: odom}, pose:{position:{x: 1.84, y: 0.5, z: 0}, orientation: {x: 0, y: 0, z: 0, w: 1}}}}'
-
-<!-- Pick up task -->
-rostopic pub -1 /full_goal sdf_mp_integration/WholeBodyPose '{arm: [0.0, -1.57, 0.0, -1.57, 0.0], base:{header:{stamp: now, frame_id: odom}, pose:{position:{x: 2.0, y: -0.1, z: 0}, orientation: {x: 0, y: 0, z: 0, w: 1}}}}'
-
-<!-- Shelf task -->
-
-rostopic pub -1 /full_goal sdf_mp_integration/WholeBodyPose '{arm: [0.2, -1.2, 0.0, -0.4, 0.0], base:{header:{stamp: now, frame_id: odom}, pose:{position:{x: 3.6, y: 0.65, z: 0}, orientation: {x: 0, y: 0, z: 0, w: 1}}}}'
+## License
+-----
+This repository is licensed under the BSD-3-Clause license.
