@@ -151,3 +151,4 @@ void sdf_mp_integration::HeadController<SDFPACKAGEPTR>::lookForwards() {
 
 template class sdf_mp_integration::HeadController<gpu_voxels_ros::GPUVoxelsHSRServer*>;
 template class sdf_mp_integration::HeadController<gpu_voxels_ros::LiveCompositeSDF*>;
+template class sdf_mp_integration::HeadController<gpu_voxels_ros::SingleCompositeSDF*>;

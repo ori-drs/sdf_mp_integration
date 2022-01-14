@@ -103,6 +103,13 @@ void sdf_mp_integration::PlanningServer<LiveCompositeSDFPtr>::initGPUVoxels(){
     }
 }
 
+template <>
+void sdf_mp_integration::PlanningServer<SingleCompositeSDFPtr>::initGPUVoxels(){
+    std::cout << "Initialised LiveCompositeSDF." << std::endl;
+    gpu_voxels_ptr_ =  new gpu_voxels_ros::SingleCompositeSDF(node_);
+    sdf_handler_ = new sdf_mp_integration::SDFHandler<SingleCompositeSDFPtr>(gpu_voxels_ptr_); 
+}
+
 template <typename SDFPACKAGEPTR>
 void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::moveToGo(){
   std_msgs::String msg;
@@ -506,6 +513,35 @@ bool sdf_mp_integration::PlanningServer<LiveCompositeSDFPtr>::collisionCheck(con
 
 }
 
+template <>
+bool sdf_mp_integration::PlanningServer<SingleCompositeSDFPtr>::collisionCheck(const gtsam::Values &traj){
+
+  bool isCollide = false;
+  // size_t interp_steps = 4;
+  size_t interp_steps = 0;
+
+  gtsam::Values interp_traj = gpmp2::interpolatePose2MobileArmTraj(traj, setting_.Qc_model, delta_t_, interp_steps, 0, total_time_step_-1);
+
+  // TODO - Sort this horrible conversion out
+  // Get a single obstacle factor from the graph to carry out the evaluation  
+  // gtsam::FactorGraph<sdf_mp_integration::ObstacleFactor<GPUVoxelsPtr, gpmp2::Pose2MobileVetLinArmModel>>::sharedFactor fact_ptr = graph_.at(factor_index_dict_["obstacle"][0][0]);
+  gtsam::NonlinearFactor::shared_ptr fact_ptr = graph_.at(factor_index_dict_["obstacle"][0][0]);
+  typename sdf_mp_integration::ObstacleFactor<SingleCompositeSDFPtr, gpmp2::Pose2MobileVetLinArmModel>::shared_ptr conv_fact_ptr = 
+                                                  boost::static_pointer_cast<sdf_mp_integration::ObstacleFactor<SingleCompositeSDFPtr, gpmp2::Pose2MobileVetLinArmModel>>(fact_ptr);
+
+  // Loop through each time-step in the trajectory to check for a collision
+  // std::cout << "Collisions at steps:" << std::endl;
+  for (size_t i = 0; i < (total_time_step_-1)*(interp_steps+1) + 1; i++){   
+    gpmp2::Pose2Vector pose = interp_traj.at<gpmp2::Pose2Vector>(gtsam::Symbol('x', i));
+    isCollide = isCollide || conv_fact_ptr->isInCollision(pose);
+    // std::cout << conv_fact_ptr->isInCollision(pose) << ", ";
+  }
+  // std::cout << std::endl;
+
+  return isCollide;
+
+}
+
 template <typename SDFPACKAGEPTR>
 void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::finishTaskCleanup(){
     replan_timer_.stop();
@@ -518,6 +554,7 @@ void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::finishTaskCleanup(){
     // results_recorder_.saveResults();
     // std::cout << "Results saved!" << std::endl;
     // look(1.0, 0, 0.0, "base_footprint");
+    ros::Duration(1.0).sleep();
     head_controller_->lookForwards();   
 }
 
@@ -572,7 +609,7 @@ bool sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::replanTrajectory(gtsam::
     {
       std::cout << "Appears to be stuck. Cancelling goals and starting planning using a straight line" << std::endl;
       cancelAllGoals();
-      moveToGo();
+      // moveToGo();
       // ros::Duration(1).sleep();
       head_controller_->look(goal_state_.pose().x(), goal_state_.pose().y(), 0.0, "odom");
       // ros::Duration(1).sleep();
@@ -686,11 +723,15 @@ void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::replan(){
                   << "\t StoppedExecCount: " << num_stops_ << std::endl;
 
         gtsam::Values refit_values;
+        auto start_replan_traj_t = std::chrono::high_resolution_clock::now(); 
         bool col_free_traj = replanTrajectory(refit_values, idx);
+        auto fin_replan_traj_t = std::chrono::high_resolution_clock::now(); 
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(fin_replan_traj_t - start_replan_traj_t); 
+        std::cout << "Traj replan time (ms): " << duration.count() << " ms" << std::endl;
         visualiseInitialBasePlan(refit_values, total_time_step_);
 
         if (col_free_traj){
-          // std::cout << "Successfully replanned trajectory." << std::endl;
+          std::cout << "Successfully replanned trajectory." << std::endl;
           begin_t_ = ros::WallTime::now();
           // auto finish_update = std::chrono::high_resolution_clock::now(); 
 
@@ -701,7 +742,7 @@ void sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::replan(){
           visualiseTrajectory(traj_res_, total_time_step_);
         }
         else{
-          std::cout << "No new trajectory found." << std::endl;
+          std::cout << "Still no collision free trajectory." << std::endl;
           // gpu_voxels_ptr_->getRecoveryPlan(epsilon_ + 0.27, 2.0, current_pose_.x(), current_pose_.y(), goal_state_.x(), goal_state_.y(), total_time_step_);
         }        
 
@@ -1597,7 +1638,7 @@ void sdf_mp_integration::PlanningServer<LiveCompositeSDFPtr>::constructGraph(
   // using namespace gtsam;
 
   graph_ = gtsam::NonlinearFactorGraph();
-
+  // std::cout << "Creating graph with num_timesteps: " << setting_.total_step << std::endl;
   // For bookkeeping storage of factors
   factor_index_dict_ = {
                           { "prior", std::vector<std::vector<size_t>>(setting_.total_step + 1) },
@@ -1700,6 +1741,123 @@ void sdf_mp_integration::PlanningServer<LiveCompositeSDFPtr>::constructGraph(
                 setting_.cost_sigma, setting_.epsilon, setting_.Qc_model, delta_t, tau));
             factor_ind_counter += 1;
           }
+        }
+      }
+
+      // GP factor
+      gp_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(GP(last_pose_key, last_vel_key, pose_key, vel_key, delta_t, setting_.Qc_model));
+      factor_ind_counter += 1;
+    }
+
+    // fact_indices_[i]  = std::tuple< std::vector<size_t>, std::vector<size_t> >{obs_fact_indices_in_timestep , gp_obs_fact_indices_in_timestep};
+    factor_index_dict_["prior"][i] = prior_fact_indices_in_timestep;
+    factor_index_dict_["obstacle"][i] = obs_fact_indices_in_timestep;
+    factor_index_dict_["gp_obstacle"][i] = gp_obs_fact_indices_in_timestep;
+    factor_index_dict_["pos"][i] = pos_fact_indices_in_timestep;
+    factor_index_dict_["vel"][i] = vel_fact_indices_in_timestep;
+    factor_index_dict_["gp"][i] = gp_fact_indices_in_timestep;
+  
+  }
+
+  // std::cout << "Graph constructed successfully" << std::endl;
+
+}
+
+template <>
+template<class ROBOT, class GP, class SDFHandler, class OBS_FACTOR, class OBS_FACTOR_GP, 
+    class LIMIT_FACTOR_POS, class LIMIT_FACTOR_VEL>
+void sdf_mp_integration::PlanningServer<SingleCompositeSDFPtr>::constructGraph(
+    const ROBOT& arm,
+    const typename ROBOT::Pose& start_conf, const typename ROBOT::Velocity& start_vel,
+    const typename ROBOT::Pose& end_conf, const typename ROBOT::Velocity& end_vel) {
+
+  // using namespace gtsam;
+
+  graph_ = gtsam::NonlinearFactorGraph();
+
+  // For bookkeeping storage of factors
+  factor_index_dict_ = {
+                          { "prior", std::vector<std::vector<size_t>>(setting_.total_step + 1) },
+                          { "obstacle", std::vector<std::vector<size_t>>(setting_.total_step + 1) },
+                          { "gp_obstacle", std::vector<std::vector<size_t>>(setting_.total_step + 1) },
+                          { "pos", std::vector<std::vector<size_t>>(setting_.total_step + 1) },
+                          { "vel", std::vector<std::vector<size_t>>(setting_.total_step + 1) },
+                          { "gp", std::vector<std::vector<size_t>>(setting_.total_step + 1) }
+                        };
+
+  // fact_indices_ = std::vector<std::tuple< std::vector<size_t>, std::vector<size_t> > >(problem_setup_.total_time_step_ + 1);
+
+  // GP interpolation setting
+  const double delta_t = setting_.total_time / static_cast<double>(setting_.total_step);
+  const double inter_dt = delta_t / static_cast<double>(setting_.obs_check_inter + 1);
+  
+  int factor_ind_counter = 0;
+
+  for (size_t i = 0; i < setting_.total_step; i++) {
+    gtsam::Key pose_key = gtsam::Symbol('x', i);
+    gtsam::Key vel_key = gtsam::Symbol('v', i);
+
+    std::vector<size_t> obs_fact_indices_in_timestep;
+    std::vector<size_t> gp_obs_fact_indices_in_timestep;
+    std::vector<size_t> gp_fact_indices_in_timestep;
+    std::vector<size_t> prior_fact_indices_in_timestep;
+    std::vector<size_t> vel_fact_indices_in_timestep;
+    std::vector<size_t> pos_fact_indices_in_timestep;
+
+    // start and end
+    if (i == 0) {
+
+      prior_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Pose>(pose_key, start_conf, setting_.conf_prior_model));
+      factor_ind_counter += 1;
+
+      prior_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Velocity>(vel_key, start_vel, setting_.vel_prior_model));
+      factor_ind_counter += 1;
+
+    } else if (i == setting_.total_step - 1) {
+      prior_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Pose>(pose_key, end_conf, setting_.conf_prior_model));
+      factor_ind_counter += 1;
+      
+      prior_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(gtsam::PriorFactor<typename ROBOT::Velocity>(vel_key, end_vel, setting_.vel_prior_model));
+      factor_ind_counter += 1;
+    }
+
+    if (setting_.flag_pos_limit) {
+      // joint position limits
+      pos_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(LIMIT_FACTOR_POS(pose_key, setting_.pos_limit_model, setting_.joint_pos_limits_down, 
+          setting_.joint_pos_limits_up, setting_.pos_limit_thresh));
+      factor_ind_counter += 1;
+    }
+    if (setting_.flag_vel_limit) {
+      // velocity limits
+      vel_fact_indices_in_timestep.push_back(factor_ind_counter);
+      graph_.add(LIMIT_FACTOR_VEL(vel_key, setting_.vel_limit_model, setting_.vel_limits, 
+          setting_.vel_limit_thresh));
+      factor_ind_counter += 1;
+    }
+
+    // non-interpolated cost factor
+    obs_fact_indices_in_timestep.push_back(factor_ind_counter);
+    graph_.add(OBS_FACTOR(pose_key, arm, *sdf_handler_, setting_.cost_sigma, setting_.epsilon));
+    factor_ind_counter += 1;
+
+    if (i > 0) {
+      gtsam::Key last_pose_key = gtsam::Symbol('x', i-1);
+      gtsam::Key last_vel_key = gtsam::Symbol('v', i-1);
+
+      // interpolated cost factor
+      if (setting_.obs_check_inter > 0) {
+        for (size_t j = 1; j <= setting_.obs_check_inter; j++) {
+          const double tau = inter_dt * static_cast<double>(j);
+          gp_obs_fact_indices_in_timestep.push_back(factor_ind_counter);
+          graph_.add(OBS_FACTOR_GP(last_pose_key, last_vel_key, pose_key, vel_key, arm, *sdf_handler_,
+              setting_.cost_sigma, setting_.epsilon, setting_.Qc_model, delta_t, tau));
+          factor_ind_counter += 1;
         }
       }
 
@@ -1971,3 +2129,4 @@ gtsam::Values sdf_mp_integration::PlanningServer<SDFPACKAGEPTR>::manualOptimize(
 
 template class sdf_mp_integration::PlanningServer<gpu_voxels_ros::GPUVoxelsHSRServer*>;
 template class sdf_mp_integration::PlanningServer<gpu_voxels_ros::LiveCompositeSDF*>;
+template class sdf_mp_integration::PlanningServer<gpu_voxels_ros::SingleCompositeSDF*>;

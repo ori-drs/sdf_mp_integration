@@ -29,6 +29,7 @@
 // #include <gpu_voxels_ros/gpu_voxels_server.h>
 #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
 #include <gpu_voxels_ros/live_composite_sdf.h>
+#include <gpu_voxels_ros/single_composite_sdf.h>
 
 #pragma once
 
@@ -42,6 +43,8 @@ typedef gpu_voxels_ros::GPUVoxelsHSRServer* GPUVoxelsPtr;
 typedef gpu_voxels_ros::GPUVoxelsHSRServer GPUVoxelsClass;
 typedef gpu_voxels_ros::LiveCompositeSDF* LiveCompositeSDFPtr;
 typedef gpu_voxels_ros::LiveCompositeSDF LiveCompositeSDFClass;
+typedef gpu_voxels_ros::SingleCompositeSDF* SingleCompositeSDFPtr;
+typedef gpu_voxels_ros::SingleCompositeSDF SingleCompositeSDFClass;
 
 namespace sdf_mp_integration {
 

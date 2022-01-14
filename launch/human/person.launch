@@ -69,9 +69,6 @@
 
   <node name="person_moving_obstacle_node" pkg="sdf_mp_integration" type="person_moving_obstacle_node.py"/>
 
-  <!-- <node name="spawn_person" pkg="gazebo_ros" type="spawn_model" args="-file /home/mark/.gazebo/models/person_standing/model.sdf  -sdf -model person -y 3.0 -x 3.0 -Y 0.0" /> -->
-  <node name="spawn_person" pkg="gazebo_ros" type="spawn_model" args="-file /home/mark/.gazebo/models/person_standing/model.sdf  -sdf -model person -y 10.0 -x 10.0 -Y 0.0" />
-
-  <!-- <node name="planning_server" pkg="sdf_mp_integration" type="planning_server_node"/> -->
+  <node name="spawn_person" pkg="gazebo_ros" type="spawn_model" args="-file /home/orion/luka_collab_ws/src/tmc_wrs_gazebo_world/models/person_standing/model.sdf  -sdf -model person -y 10.0 -x 10.0 -Y 0.0" />
 
 </launch>

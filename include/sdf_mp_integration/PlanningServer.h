@@ -18,6 +18,7 @@
 
 // #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
 #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
+#include <gpu_voxels_ros/single_composite_sdf.h>
 #include <sdf_mp_integration/SetHSRConf.h>
 #include <sdf_mp_integration/GenerateArm.h>
 
@@ -89,7 +90,7 @@ class PlanningServer{
       std::string base_goal_sub_topic_, arm_goal_sub_topic_, full_goal_sub_topic_, actual_base_sub_topic_;
       double resolution_;
       tf::TransformListener listener;
-      sdf_mp_integration::SDFHandler<GPUVoxelsPtr>* sdf_handler_;
+      sdf_mp_integration::SDFHandler<SDFPACKAGEPTR>* sdf_handler_;
       ros::Publisher path_pub_, init_path_pub_, plan_msg_pub_, hsr_python_move_pub_;
 
       actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction> execute_arm_ac_ ;

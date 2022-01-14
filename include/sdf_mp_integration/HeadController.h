@@ -10,6 +10,7 @@
 
 #include <gpu_voxels_ros/gpu_voxels_hsr_server.h>
 #include <gpu_voxels_ros/live_composite_sdf.h>
+#include <gpu_voxels_ros/single_composite_sdf.h>
 #include <gtsam/nonlinear/Values.h>
 #include <sdf_mp_integration/HeadDirection.h>
 

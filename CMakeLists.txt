@@ -21,9 +21,9 @@ find_package(roscpp REQUIRED)
 find_package(gpu_voxels_ros REQUIRED)
 find_package(gpmp2 REQUIRED)
 find_package(Boost COMPONENTS timer REQUIRED) # Why this is needed, i have no idea
-find_package(gpu_voxels PATHS /home/mark/installs/gpu-voxels/export REQUIRED)
+find_package(gpu_voxels PATHS /home/orion/installs/gpu-voxels/export REQUIRED)
 FIND_PACKAGE(CUDA REQUIRED)
-FIND_PACKAGE(icl_core PATHS /home/mark/installs/gpu-voxels/export REQUIRED )
+FIND_PACKAGE(icl_core PATHS /home/orion/installs/gpu-voxels/export REQUIRED )
 FIND_PACKAGE(Boost COMPONENTS system REQUIRED)
 FIND_PACKAGE(orocos_kdl REQUIRED)
 FIND_PACKAGE(rospy REQUIRED)
@@ -180,6 +180,42 @@ src/utils/Visualiser.cpp
 )
 
 target_link_libraries(composite_planning_server_node 
+${catkin_LIBRARIES} 
+${roscpp_LIBRARIES} 
+# ${fiesta_LIBRARIES}
+${PCL_LIBRARIES}
+${OpenCV_LIBS}
+gpmp2
+gtsam
+# ${voxblox_ros_LIBRARIES}
+
+${Boost_SYSTEM_LIBRARY}
+${icl_core_LIBRARIES}
+${gpu_voxels_LIBRARIES}
+${CUDA_LIBRARIES}
+${orocos_kdl_LIBRARIES}
+${rospy_LIBRARIES}
+${gpu_voxels_ros_LIBRARIES}
+${dgpmp2_LIBRARIES}
+${OMPL_LIBRARIES}
+
+# ${PROJECT_NAME}_lib
+)
+
+add_executable(single_composite_planning_server_node test_scripts/single_composite_planning_server_node.cpp 
+src/SDFHandler.cpp
+src/PlanningServer.cpp
+src/GraphMaintainer.cpp
+src/SetHSRConf.cpp
+src/GenerateArm.cpp
+src/ResultsRecorder.cpp
+src/HeadController.cpp
+src/utils/timing.cpp
+src/utils/traj_utils.cpp
+src/utils/Visualiser.cpp
+)
+
+target_link_libraries(single_composite_planning_server_node 
 ${catkin_LIBRARIES} 
 ${roscpp_LIBRARIES} 
 # ${fiesta_LIBRARIES}
