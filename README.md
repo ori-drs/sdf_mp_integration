@@ -3,6 +3,8 @@ sdf_mp_integration
 
 This package performs integrates fast distance field computations (gpu_voxels_ros) with whole-body motion planning using a trajectory optimisation approach. 
 This package inlcudes an implementation of the Receding Horizon and Predictive Gaussian Process Motion Planner 2 (RHAP-GPMP2), as presented in Finean2022 listed below.
+
+To build this package using catkin, please ensure that the environment variable GPU_VOXELS_INSTALL_DIR is set to your GPU-Voxels install directory.
 ## Citing
 -----
 
