@@ -12,7 +12,6 @@ nav_msgs
 tf
 tmc_omni_path_follower
 message_generation # For message generation
-finean_msgs
 )
 
 # find_package(catkin COMPONENTS voxblox voxblox_ros voxblox_msgs voxblox_rviz_plugin REQUIRED)
